@@ -1,0 +1,307 @@
+﻿@using NeaRentWeb.Components.Common
+@using Products.Models
+@using UserManager.Models
+
+<div class="searchbox">
+    <div class="search-string-grid">
+        <i class="bi bi-search search-string-icon"></i>
+        <InputText @ref="SearchText" class="search-textbox search-string-text" placeholder="Search" @bind-Value="searchText" />
+        <button class="search-string-text-button" @onclick="ClearSearchString"><i class="bi bi-x-lg"></i></button>
+        <i class="vr search-string-seperator"></i>
+    </div>
+    <div class="search-category-grid">
+        <i class="bi bi-boxes search-category-icon"></i>
+        <select class="search-category-dropdown" @bind=@categoryId>
+            <option ref="SearchCategory" value="" disabled selected hidden>Category</option>
+            @foreach (Category item in Categories.AllCategories)
+            {
+                if (item.HasChildren || item.ParentId == null)
+                {
+                    <option style="font-weight:800;" value=@item.Id.ToString()>@item.Name</option>
+                }
+                else
+                {
+                    <option style="font-weight:400;" value=@item.Id.ToString()>@item.Name</option>
+                }
+            }
+        </select>
+        <button class="search-category-button" @onclick="ClearCategory"><i class="bi bi-x-lg"></i></button>
+        <i class="vr search-category-seperator"></i>
+    </div>
+    <div class="search-location-grid">
+        <i class="bi bi-geo-alt search-location-icon"></i>
+        <select @ref="SearchLocation" class="search-location-dropdown" @bind=@locationId>
+            <option value="" disabled selected hidden>Location</option>
+            @foreach (AddressCountry country in Addresses.AllCountriesStatesCities)
+            {
+                <option style="font-weight:800;" value=@country.Id.ToString()>@country.Name</option>
+                @foreach (AddressState state in country.AddressStates)
+                {
+                    <option style="font-weight:600;font-style:italic" value=@state.Id.ToString()>@state.Name</option>
+                    @foreach (AddressCity city in state.AddressCities)
+                    {
+                        <option style="font-weight:600;" value=@city.Id.ToString()>@city.Name</option>
+                    }
+                }
+            }
+        </select>
+        <button class="search-location-button" @onclick="ClearLocation"><i class="bi bi-x-lg"></i></button>
+        <i class="vr search-location-seperator"></i>
+    </div>
+    <div class="search-find">
+        <Button Class="search-find-button" @onclick="Search">Find</Button>
+    </div>
+
+</div>
+
+@code {
+    [Parameter]
+    public EventCallback<Dictionary<string, string>> OnSearch
+    {
+        get; set;
+    }
+
+    InputText SearchText;
+    ElementReference SearchCategory;
+    ElementReference SearchLocation;
+
+    string? searchText { get; set; } = null;
+    string categoryId { get; set; } = "";
+    string locationId { get; set; } = "";
+
+    private void ClearSearchString()
+    {
+        searchText = null;
+    }
+
+    private void ClearCategory()
+    {
+        categoryId = "";
+    }
+
+    private void ClearLocation()
+    {
+        locationId = "";
+    }
+
+    private async Task Search()
+    {
+        Dictionary<string, string> parameters = new Dictionary<string, string>();
+
+        if (SearchText.Value != null && SearchText.Value.Trim() != "")
+        {
+            parameters.Add("searchText", SearchText.Value);
+        }
+        if (categoryId.Trim() != "")
+        {
+            parameters.Add("category", categoryId);
+        }
+        if (locationId.Trim() != "")
+        {
+            parameters.Add("location", locationId);
+        }
+
+        await OnSearch.InvokeAsync(parameters);
+    }
+}
+
+<style>
+
+    /* Extra small devices (phones, 600px and down) */
+    @@media only screen and (max-width: 600px) {
+        .searchbox {
+            font-size: var(--searchbox-font-size);
+            display: grid;
+            width: 100%;
+            height: 100%;
+            grid-template-columns: auto;
+            align-content: flex-start;
+        }
+    }
+
+    /* Small devices (portrait tablets and large phones, 600px and up) */
+    @@media only screen and (min-width: 600px) {
+    }
+
+    /* Medium devices (landscape tablets, 768px and up) */
+    @@media only screen and (min-width: 768px) {
+    }
+
+    /* Large devices (laptops/desktops, 992px and up) */
+    @@media only screen and (min-width: 992px) {
+        .searchbox {
+            font-size: var(--searchbox-font-size);
+            display: grid;
+            width: 100%;
+            height: 100%;
+            grid-template-columns: auto 25% 25% 6em;
+            align-content: center;
+        }
+    }
+
+    /* Extra large devices (large laptops and desktops, 1200px and up) */
+    @@media only screen and (min-width: 1200px) {
+        .searchbox {
+            font-size: var(--searchbox-font-size);
+            display: grid;
+            width: 100%;
+            height: 100%;
+            grid-template-columns: auto 25% 25% 6em;
+            align-content: center;
+        }
+    }
+
+    /* All media sizes */
+
+
+    .search-string-grid {
+        grid-column: 1/2;
+        display: grid;
+        grid-template-columns: 25px auto 1px 1px;
+        width: 100%;
+    }
+
+    .search-string-icon {
+        grid-column: 1/2;
+        align-self: center;
+        margin-left: 10px;
+    }
+
+    .search-string-text {
+        grid-column: 2/3;
+        display: flex;
+        flex-wrap: wrap;
+        align-self: center;
+        border-style: none;
+        width: 100%;
+        height: 80%;
+    }
+
+        .search-string-text:focus-visible {
+            outline: none;
+        }
+
+    .search-string-text-button {
+        grid-column: 3/4;
+        position: relative;
+        left: -30px;
+        height: 2em;
+        width: 2em;
+        align-self: center;
+        border-style: none;
+        background: transparent;
+    }
+
+    .search-string-seperator {
+        grid-column: 4/5;
+        height: 80%;
+        align-self: center;
+    }
+
+    .search-category-grid {
+        grid-column: 2/3;
+        display: grid;
+        grid-template-columns: 25px auto 25px 1px;
+        width: 100%;
+    }
+
+    .search-category-icon {
+        grid-column: 1/2;
+        align-self: center;
+        margin-left: 10px;
+    }
+
+    .search-category-dropdown {
+        grid-column: 2/3;
+        display: flex;
+        flex-wrap: wrap;
+        align-self: center;
+        width: 100%;
+        height: 80%;
+        border-style: none;
+    }
+
+        .search-category-dropdown:focus-visible {
+            outline: none;
+        }
+
+    .search-category-button {
+        grid-column: 3/4;
+        height: 2em;
+        width: 2em;
+        align-self: center;
+        border-style: none;
+        background: transparent;
+    }
+
+    .search-category-seperator {
+        grid-column: 4/5;
+        height: 80%;
+        align-self: center;
+    }
+
+    .search-location-grid {
+        grid-column: 3/4;
+        display: grid;
+        grid-template-columns: 25px auto 25px 1px;
+        width: 100%;
+    }
+
+    .search-location-icon {
+        grid-column: 1/2;
+        align-self: center;
+        margin-left: 10px;
+    }
+
+    .search-location-dropdown {
+        grid-column: 2/3;
+        display: flex;
+        flex-wrap: wrap;
+        align-self: center;
+        width: 100%;
+        height: 80%;
+        border-style: none;
+    }
+
+        .search-location-dropdown:focus-visible {
+            outline: none;
+        }
+
+    .search-location-button {
+        grid-column: 3/4;
+        height: 2em;
+        width: 2em;
+        align-self: center;
+        border-style: none;
+        background: transparent;
+    }
+
+    .search-location-seperator {
+        grid-column: 4/5;
+        height: 80%;
+        align-self: center;
+    }
+
+    .search-find {
+        grid-column: 4/5;
+        display: flex;
+        justify-content: end;
+    }
+
+    .search-find-button {
+        background-color: var(--button-background);
+        color: var(--search-button-text);
+        font-size: var(--searchbox-button-font-size);
+        border-style: solid;
+        border-width: 1px;
+        border-color: var(--search-button-border);
+        box-shadow: 2px 1px 5px lightgray;
+        margin-right: 5px;
+        width: 100%;
+        margin: 10px;
+    }
+
+    .vx {
+        height: 50%;
+    }
+</style>

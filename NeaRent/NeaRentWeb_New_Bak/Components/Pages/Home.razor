@@ -1,0 +1,102 @@
+﻿@page "/"
+
+@namespace NeaRentWeb.Components.Common
+
+@inject HttpClient httpClient
+@inject NavigationManager Navigation
+
+<div>
+   
+</div>
+@code {
+    
+    protected override async Task OnInitializedAsync()
+    {
+        Navigation.NavigateTo("/browsebycategory");
+    }
+}
+
+<style>
+    .section-title {
+    }
+
+    .section-featured-deals {
+        display: grid;
+        grid-template-columns: 1fr 1fr 1fr 1fr 1fr;
+        gap: 10px;
+        overflow-x: auto;
+        overflow-y: auto;
+        white-space: nowrap;
+        scroll-behavior: smooth;
+        height: auto;
+        max-height: 50em;
+    }
+
+
+    .section-featured-categories {
+        display: flex;
+        flex-direction: row;
+        gap: 10px;
+        overflow-x: auto;
+        overflow-y: hidden;
+        white-space: nowrap;
+        scroll-behavior: smooth;
+        height: 15.1em;
+    }
+
+    .breadcrumb {
+    }
+
+    .card-container {
+        width: 15em;
+        height: 12em;
+    }
+
+    .card-container-deal {
+        width: 15em;
+        height: 14em;
+        align-self: center;
+        justify-self: center;
+    }
+
+    .card {
+        height: 14em;
+    }
+
+    .card-body {
+        width: 15em;
+        padding: 5px;
+        display: grid;
+    }
+
+    .card-title {
+        display: flex;
+        flex-wrap: wrap;
+        color: var(--card-text);
+        text-align: center;
+        font-size: var(--card-text-font-size);
+        align-self: end;
+        justify-self: center;
+    }
+
+    .card-deal-title {
+        display: flex;
+        flex-wrap: wrap;
+        color: var(--card-text);
+        text-align: center;
+        font-size: var(--card-text-font-size);
+        align-self: end;
+        justify-self: center;
+    }
+
+    .card-image {
+        width: auto;
+        display: flex;
+        flex-wrap: wrap;
+        height: 100%;
+        max-height: 150px;
+        max-width: 100%;
+        align-content: center;
+        justify-self: center;
+    }
+</style>

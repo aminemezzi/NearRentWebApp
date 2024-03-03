@@ -1,0 +1,301 @@
+﻿@page "/register"
+
+@implements IDisposable
+
+@using NeaRentWeb.Components.Account
+@using System.ComponentModel.DataAnnotations
+@using Microsoft.Extensions.Options
+
+@inject AuthenticationStateProvider authenticationStateProvider
+@inject NavigationManager Navigation
+@inject Endpoints endpoints
+@inject UserTokenProvider userTokenProvider
+
+<div class="register-page">
+    <div class="register-container">
+        <div class="register-title">Register</div>
+        <div class="register-providers">
+            <button class="provider-button"><img class="provider-logo" src="images\google_logo.png" />Google</button>
+        </div>
+        <hr class="break" />
+
+        <EditForm Model="@registerForm" OnValidSubmit="@Submit" FormName="RegisterForm">
+            <DataAnnotationsValidator />
+
+            <div class="register-text">Or continue with email address</div>
+            <div class="register-name-container">
+                <i class="bi bi-person-add"></i>
+                <input class="register-name" type="text" @bind-value=registerForm.Firstname placeholder="Name" />
+            </div>
+            <ValidationMessage For="() => registerForm.Firstname" />
+            <div class="register-name-container">
+                <i class="bi bi-person-add"></i>
+                <input class="register-name" type="text" @bind-value=registerForm.Surname placeholder="Surname" />
+            </div> 
+            <ValidationMessage For="() => registerForm.Surname" />
+            <div class="register-email-container">
+                <i class="bi bi-envelope"></i>
+                <input class="register-email" type="email" @bind-value=registerForm.EmailAddress placeholder="Email address" />
+            </div>
+            <ValidationMessage For="() => registerForm.EmailAddress" />
+            <div class="register-email-container">
+                <i class="bi bi-lock"></i>
+                <input class="register-password" type="password" @bind-value=registerForm.Password placeholder="Password" />
+            </div>
+            <ValidationMessage For="() => registerForm.Password" />
+            <div class="register-email-container">
+                <i class="bi bi-lock"></i>
+                <input class="register-password" type="password" @bind-value=registerForm.ConfirmPassword placeholder="Confirm password" />
+            </div>
+            <ValidationMessage For="() => registerForm.ConfirmPassword" />
+            <button class="register-button" disabled=@formInvalid>Sign-up</button>
+        </EditForm>
+        <div class="signup"><div class="register-text">Already a member?</div><div class="register-text signup-text" @onclick=Login>Sign in</div></div>
+    </div>
+</div>
+
+
+@code {
+    [CascadingParameter]
+    public Task<AuthenticationState> AuthTask
+    {
+        get; set;
+    }
+
+    private RegisterForm registerForm = new RegisterForm();
+    private bool formInvalid { get; set; } = false;
+    private EditContext? editContext;
+
+    protected override async Task OnInitializedAsync()
+    {
+        editContext = new(registerForm);
+        editContext.OnFieldChanged += HandleFieldChanged;
+    }
+
+    public void Dispose()
+    {
+        if (editContext is not null)
+        {
+            editContext.OnFieldChanged -= HandleFieldChanged;
+        }
+    }
+
+    private void HandleFieldChanged(object? sender, FieldChangedEventArgs e)
+    {
+        if (editContext is not null)
+        {
+            formInvalid = !editContext.Validate();
+            StateHasChanged();
+        }
+    }
+
+    private async Task Submit()
+    {
+        // UserManager manager = new UserManager(endpoints, keycloakConfiguration, userTokenProvider);
+        // await manager.CreateNewUser(registerForm.Firstname, registerForm.Surname, registerForm.EmailAddress, registerForm.Password);
+
+        // string message = "You have been successfully registered.";
+        // Navigation.NavigateTo($"/messageandreturn/{message}");
+    }
+
+    private void Login()
+    {
+        Navigation.NavigateTo("/signin");
+    }
+
+    public class RegisterForm
+    {
+        [Required(ErrorMessage ="Name is required")]
+        public string Firstname
+        {
+            get; set;
+        }
+
+        [Required(ErrorMessage = "Surname is required")]
+        public string Surname
+        {
+            get; set;
+        }
+
+        [Required(ErrorMessage = "A valid email is required")]
+        [DataType(DataType.EmailAddress, ErrorMessage = "A valid email is required")]
+        public string EmailAddress
+        {
+            get; set;
+        }
+
+        [Required(ErrorMessage = "Password is required")]
+        [MinLength(8, ErrorMessage = "Minimum password length is 8")]
+        [DataType(DataType.Password)]
+        public string Password
+        {
+            get; set;
+        }
+
+        [Required(ErrorMessage = "Confirmation password is required")]
+        [Compare("Password", ErrorMessage = "Passwords must match")]
+        [DataType(DataType.Password)]
+        public string ConfirmPassword
+        {
+            get; set;
+        }
+    }
+}
+<style>
+    .register-page {
+        display: grid;
+        width: 100%;
+    }
+
+    .register-container {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-self: center;
+        margin-top: 30px;
+        width: 16em;
+    }
+
+    .register-title {
+        font-size: 2.5em;
+        font-weight: 700;
+        color: black;
+        background-color: white;
+    }
+
+    .register-providers {
+        margin: 30px 0px;
+    }
+
+    .provider-logo {
+        width: 1.5em;
+        height: 1.5em;
+    }
+
+    .provider-button {
+        width: 15em;
+        padding: 5px;
+        background-color: white;
+        border: 1px solid black;
+        border-radius: 10px;
+    }
+
+    .break {
+        height: 1px;
+        color: black;
+        width: 100%;
+    }
+
+    .register-text {
+        font-size: 0.9em;
+        font-weight: 700;
+        text-align: start;
+        padding: 2px 0px;
+    }
+
+    .register-text-underline {
+        text-decoration: underline;
+    }
+
+    .register-name-container {
+        display: flex;
+        flex-direction: row;
+        width: 15em;
+        padding: 5px;
+        background-color: white;
+        border: 1px solid black;
+        border-radius: 10px;
+        margin: 15px 0px 0px 0px;
+    }
+
+    .register-name {
+        background-color: white;
+        border: none;
+        width: 100%;
+        margin-left: 5px;
+    }
+
+        .register-name:focus-visible {
+            outline: none;
+        }
+
+    .register-email-container {
+        display: flex;
+        flex-direction: row;
+        width: 15em;
+        padding: 5px;
+        background-color: white;
+        border: 1px solid black;
+        border-radius: 10px;
+        margin: 15px 0px 0px 0px;
+    }
+
+    .register-email {
+        background-color: white;
+        border: none;
+        width: 100%;
+        margin-left: 5px;
+    }
+
+        .register-email:focus-visible {
+            outline: none;
+        }
+
+    .register-password-container {
+        width: 15em;
+        padding: 5px;
+        background-color: white;
+        border: 1px solid black;
+        border-radius: 10px;
+        margin: 15px 0px 0px 0px;
+    }
+
+    .register-password {
+        background-color: white;
+        border: none;
+        width: 100%;
+        margin-left: 5px;
+    }
+
+        .register-password:focus-visible {
+            outline: none;
+        }
+
+    .register-button {
+        background-color: var(--register-button-background);
+        color: var(--register-button-color);
+        width: 100%;
+        border-radius: 10px;
+        height: 2.5em;
+        margin: 20px 0px;
+        border: 0px;
+    }
+
+    .remember-me {
+        display: flex;
+        flex-direction: row;
+        align-items: center;
+        margin-left: 5px;
+    }
+
+    .remember-me-checkbox {
+        margin-right: 5px;
+    }
+
+    .signup {
+        display: flex;
+        flex-direction: row;
+        width: -webkit-fill-available;
+        justify-content: center;
+        margin-top: 5px;
+    }
+
+    .signup-text {
+        color: var(--nearent-green);
+        margin-left: 5px;
+    }
+
+    .validation-message{
+        font-size: 0.8em;
+    }
+</style>

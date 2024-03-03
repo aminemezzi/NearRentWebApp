@@ -1,0 +1,90 @@
+﻿@inject NavigationManager Navigation
+@inject AuthenticationStateProvider authenticationStateProvider
+@inject HttpClient httpClient
+
+@using NeaRentWeb.Components.Account
+
+<div class="menu-button-container">
+    <button class="menu-button" type="button" data-bs-toggle="dropdown" aria-expanded="false">
+        <img style="align-self: center;" src="images/menu.svg" />
+    </button>
+    <ul class="dropdown-menu">
+        @if (!IsAuthorized)
+        {
+            <li><a class="dropdown-item" href="/register"><div class="menu-item"><i class="bi bi-person-plus"></i><div class="menu-item-text">Register</div></div></a></li>
+            <li><a class="dropdown-item" href="/signin"><div class="menu-item"><i class="bi bi-box-arrow-in-right"></i><div class="menu-item-text">Sign in</div></div></a></li>
+            <li><hr class="dropdown-divider"></li>
+            <li><a class="dropdown-item" href="#"><div class="menu-item"><i class="bi bi-question-circle"></i><div class="menu-item-text">How it works?</div></div></a></li>
+            <li><a class="dropdown-item" href="#"><div class="menu-item"><i class="bi bi-headset"></i><div class="menu-item-text">Help & Support</div></div></a></li>
+        }
+        else
+        {
+            <li><a class="dropdown-item" href="#"><div class="menu-item"><i class="bi bi-box-seam"></i><div class="menu-item-text">My Orders</div></div></a></li>
+            <li><a class="dropdown-item" href="#"><div class="menu-item"><i class="bi bi-star"></i><div class="menu-item-text">My Favourites</div></div></a></li>
+            <li><hr class="dropdown-divider"></li>
+            <li><a class="dropdown-item" href="#"><LanguageSelection FullWidth=true /></a></li>
+            <li><a class="dropdown-item" href="#"><div class="menu-item"><i class="bi bi-gear"></i><div class="menu-item-text">Account Settings</div></div></a></li>
+            <li><hr class="dropdown-divider"></li>
+            <li><a class="dropdown-item" href="#"><div class="menu-item"><i class="bi bi-question-circle"></i><div class="menu-item-text">How it works?</div></div></a></li>
+            <li><a class="dropdown-item" href="#"><div class="menu-item"><i class="bi bi-headset"></i><div class="menu-item-text">Help & Support</div></div></a></li>
+            <li><a class="dropdown-item" @onclick=Logout><div class="menu-item"><i class="bi bi-box-arrow-left"></i><div class="menu-item-text">Log out</div></div></a></li>
+        }
+    </ul>
+</div>
+
+@code {
+    [Parameter]
+    public bool IsAuthorized { get; set; } = false;
+
+    string idToken { get; set; } = "";
+    string logoutRedirect { get; set; } = "";
+
+    protected override async Task OnInitializedAsync()
+    {
+        // AuthenticationState authState = await authenticationStateProvider.GetAuthenticationStateAsync();
+        // if (authState != null)
+        // {
+        //     var claim = authState.User.Claims.Where(x => x.Type == "jti").FirstOrDefault();
+
+        //     if (claim != null)
+        //     {
+        //         //    idToken = tokens.IdToken;
+        //         logoutRedirect = Uri.EscapeDataString(Navigation.BaseUri + "/logout");
+        //     }
+        //     else
+        //     {
+        //         // loginRedirect = Uri.EscapeDataString(Navigation.BaseUri);
+        //         // registerRedirect = Uri.EscapeDataString(Navigation.BaseUri);
+        //     }
+        // }
+    }
+
+    private async Task Logout()
+    {
+        await ((AuthStateProvider) authenticationStateProvider).Logout();
+    }
+}
+
+<style>
+    .menu-button-container {
+        display: flex;
+    }
+
+    .menu-button {
+        display: flex;
+        height: fit-content;
+        width: fit-content;
+        padding: 0px !important;
+        align-self: center;
+        border-style: none;
+        background: transparent;
+    }
+
+    .menu-item {
+        display: flex;
+        gap: 10px;
+    }
+
+    .menu-item-text {
+    }
+</style>

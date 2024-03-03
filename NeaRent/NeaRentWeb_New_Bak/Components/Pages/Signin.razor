@@ -1,0 +1,245 @@
+﻿@page "/signin"
+
+@implements IDisposable
+
+@using NeaRentWeb.Components.Account
+@using System.ComponentModel.DataAnnotations
+
+@inject AuthenticationStateProvider authenticationStateProvider
+@inject NavigationManager Navigation
+@inject Endpoints endpoints
+@inject UserTokenProvider userTokenProvider
+@inject AzureSettings azureSettings
+
+<div class="login-page">
+    <div class="login-container">
+        <div class="login-title">Sign In</div>
+        <div class="login-providers">
+            <button class="provider-button"><img class="provider-logo" src="images\google_logo.png" />Google</button>
+        </div>
+        <hr class="break" />
+
+        <EditForm Model="@loginForm" OnValidSubmit="@Submit" FormName="LoginForm">
+            <DataAnnotationsValidator />
+            <div class="login-text">Or continue with email address</div>
+            <div class="login-email-container">
+                <i class="bi bi-envelope"></i>
+                <input class="login-email" type="email" @bind-value=loginForm.Username />
+            </div>
+            <div class="login-email-container">
+                <i class="bi bi-lock"></i>
+                <input class="login-password" type="password" @bind-value=loginForm.Password />
+            </div>
+            <div class="login-text login-text-underline" @onclick=ForgotPassword>Forgot password?</div>
+            <button class="login-button" disabled=@formInvalid>Sign In</button>
+            <div class="remember-me">
+                <input type="checkbox" class="remember-me-checkbox" />
+                <div class="login-text">Remember me</div>
+            </div>
+        </EditForm>
+        <div class="signup"><div class="login-text">Don't have an account?</div><div class="login-text signup-text" @onclick=Register>Sign up</div></div>
+    </div>
+</div>
+
+
+@code {
+    [CascadingParameter]
+    public Task<AuthenticationState> AuthTask
+    {
+        get; set;
+    }
+
+    private LoginForm loginForm = new LoginForm();
+    private bool formInvalid { get; set; } = false;
+    private EditContext? editContext;
+
+    protected override async Task OnInitializedAsync()
+    {
+        editContext = new(loginForm);
+        editContext.OnFieldChanged += HandleFieldChanged;
+    }
+
+    public void Dispose()
+    {
+        if (editContext is not null)
+        {
+            editContext.OnFieldChanged -= HandleFieldChanged;
+        }
+    }
+
+    private void HandleFieldChanged(object? sender, FieldChangedEventArgs e)
+    {
+        if (editContext is not null)
+        {
+            formInvalid = !editContext.Validate();
+            StateHasChanged();
+        }
+    }
+
+
+    private async Task Submit()
+    {
+        string? result = await ((AuthStateProvider) authenticationStateProvider).Login(loginForm.Username, loginForm.Password, endpoints, azureSettings, userTokenProvider);
+
+        if (result == null)
+        {
+            Navigation.NavigateTo("/");
+        }
+    }
+
+    private void Register()
+    {
+        Navigation.NavigateTo("/register");
+    }
+
+    private void ForgotPassword()
+    {
+        string message = "An email has been sent to you with further instructions on resetting your password.";
+        Navigation.NavigateTo($"/messageandreturn/{message}");
+    }
+
+    public class LoginForm
+    {
+        [Required]
+        [DataType(DataType.EmailAddress)]
+        public string Username
+        {
+            get; set;
+        }
+
+        [Required]
+        [DataType(DataType.Password)]
+        public string Password
+        {
+            get; set;
+        }
+    }
+}
+<style>
+    .login-page {
+        display: grid;
+        width: 100%;
+    }
+
+    .login-container {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-self: center;
+        margin-top: 30px;
+        width: 16em;
+    }
+
+    .login-title {
+        font-size: 2.5em;
+        font-weight: 700;
+        color: black;
+        background-color: white;
+    }
+
+    .login-providers {
+        margin: 30px 0px;
+    }
+
+    .provider-logo {
+        width: 1.5em;
+        height: 1.5em;
+    }
+
+    .provider-button {
+        width: 15em;
+        padding: 5px;
+        background-color: white;
+        border: 1px solid black;
+        border-radius: 10px;
+    }
+
+    .break {
+        height: 1px;
+        color: black;
+        width: 100%;
+    }
+
+    .login-text {
+        font-size: 0.9em;
+        font-weight: 700;
+        text-align: start;
+        padding: 2px 0px;
+    }
+
+    .login-text-underline {
+        text-decoration: underline;
+    }
+
+    .login-email-container {
+        display: flex;
+        flex-direction: row;
+        width: 15em;
+        padding: 5px;
+        background-color: white;
+        border: 1px solid black;
+        border-radius: 10px;
+        margin: 10px 0px;
+    }
+
+    .login-email {
+        background-color: white;
+        border: none;
+        width: 100%;
+    }
+
+        .login-email:focus-visible {
+            outline: none;
+        }
+
+    .login-password-container {
+        width: 15em;
+        padding: 5px;
+        background-color: white;
+        border: 1px solid black;
+        border-radius: 10px;
+    }
+
+    .login-password {
+        background-color: white;
+        border: none;
+        width: 100%;
+    }
+
+        .login-password:focus-visible {
+            outline: none;
+        }
+
+    .login-button {
+        background-color: var(--login-button-background);
+        color: var(--login-button-color);
+        width: 100%;
+        border-radius: 10px;
+        height: 2.5em;
+        margin: 20px 0px;
+        border: 0px;
+    }
+
+    .remember-me {
+        display: flex;
+        flex-direction: row;
+        align-items: center;
+    }
+
+    .remember-me-checkbox {
+        margin-right: 5px;
+    }
+
+    .signup {
+        display: flex;
+        flex-direction: row;
+        width: -webkit-fill-available;
+        justify-content: center;
+        margin-top: 5px;
+    }
+
+    .signup-text {
+        color: var(--nearent-green);
+        margin-left: 5px;
+    }
+</style>

@@ -1,0 +1,18 @@
+﻿<div>
+    @foreach (Product item in ListOfProduct)
+    {
+        <div class="card-container-deal">
+            <Card Class="card">
+                <CardBody Class="card-body">
+                    <img src="categoryimages/@item.ImageName" class="card-image" />
+                    <CardTitle Class="card-title">@item.Title</CardTitle>
+                        <CardText Class="card-deal-title">£ @item.ReservationValue</CardText>
+                    </CardBody>
+                </Card>
+            </div>
+    }
+</div>
+@code {
+    [Parameter]
+    public List<Product> ListOfProduct { get; set; } = new List<Product>();
+}

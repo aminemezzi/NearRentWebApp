@@ -1,0 +1,22 @@
+﻿@using Products.Models
+@using NeaRentWeb.Components.Common
+
+@foreach (Category item in ListOfCategory)
+{
+    <div class="card-container">
+        <Card Class="card">
+            <CardBody Class="card-body">
+                <img src="categoryimages/@item.ImageName" class="card-image" />
+                <CardTitle Class="card-title">@item.Name</CardTitle>
+                    <div class="card-deal-title"></div>
+                </CardBody>
+            </Card>
+        </div>
+}
+
+
+
+@code {
+    [Parameter]
+    public List<Category> ListOfCategory { get; set; } = new List<Category>();
+}

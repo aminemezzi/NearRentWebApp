@@ -1,0 +1,17 @@
+﻿<div class="feature">
+    @foreach (Product product in Products)
+    {
+        <div>
+            <FeaturedDealCard Product=product />
+        </div>
+        @*  *@
+    }
+</div>
+
+@code {
+    [Parameter]
+    public List<Product> Products
+    {
+        get; set;
+    } = new List<Product>();
+}

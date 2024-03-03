@@ -1,0 +1,40 @@
+﻿@inherits LayoutComponentBase
+
+@implements IDisposable
+
+@inject IHttpClientFactory ClientFactory
+@inject NavigationManager Navigation
+@inject AuthenticationStateProvider AuthenticationStateProvider
+@inject HttpClient httpClient
+
+<div class="pagecontainer">
+    <div class="page">
+        <div class="main">
+            <header class="p-3 border-bottom">
+                <div class="main-header">
+                    <img class="main-header-logo" src="images/nearent_logo.png" />
+                </div>
+            </header>
+            <article class="content px-4">
+
+                @Body
+
+            </article>
+            <footer>
+            </footer>
+        </div>
+    </div>
+</div>
+
+@code {
+    protected override async Task OnInitializedAsync()
+    {
+
+
+
+    }
+
+    public void Dispose()
+    {
+    }
+}

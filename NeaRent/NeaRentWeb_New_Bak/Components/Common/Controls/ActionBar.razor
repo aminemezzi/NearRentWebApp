@@ -1,0 +1,46 @@
+﻿<div class="button-list-container">
+    <ul class="button-list">
+        @if (ShowRent)
+        {
+            <li class="button-listitem">
+                <button class="rent-button">Rent</button>
+            </li>
+        }
+        @if (ShowRentOut)
+        {
+            <li class="button-listitem">
+                <button class="rent-out-button">Rent Out</button>
+            </li>
+        }
+    </ul>
+</div>
+
+@code {
+    [Parameter]
+    public bool ShowRent { get; set; } = true;
+
+    [Parameter]
+    public bool ShowRentOut { get; set; } = false;
+
+}
+<style>
+    .button-list-container {
+        width: fit-content;
+        height: fit-content;
+        align-self: center;
+    }
+
+    .button-list {
+        margin: 0px;
+        padding: 0px;
+    }
+
+    .button-listitem {
+        display: flex;
+        flex-wrap: wrap;
+        align-content: center;
+    }
+
+    
+
+</style>

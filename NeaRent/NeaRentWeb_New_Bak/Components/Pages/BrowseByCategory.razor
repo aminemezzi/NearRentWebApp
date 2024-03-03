@@ -1,0 +1,29 @@
+﻿@page "/browsebycategory"
+
+@inject ProductContainer productContainer
+@inject CategoryContainer categoryContainer
+
+<div class="page-container">
+    <ContainerHeading SeeAllRoute="/" Text="Featured Deals" />
+    <FeaturedDeals Products=@ProductList />
+    <br />
+    <br />
+    <br />
+    <ContainerHeading SeeAllRoute="/" Text="Featured Categories" />
+    <FeaturedCategories Categories=@CategeoryList />
+    <br />
+    <br />
+    <br />
+    <ContainerHeading SeeAllRoute="/" Text="Recommended For You" />
+    <RecommendedDeals Products=@ProductList />
+</div>
+@code {
+    List<Product> ProductList { get; set; } = new List<Product>();
+    List<Category> CategeoryList { get; set; } = new List<Category>();
+
+    protected override async Task OnInitializedAsync()
+    {
+        ProductList = productContainer.AllProducts;
+        CategeoryList = categoryContainer.AllFeaturedCategories;
+    }
+}

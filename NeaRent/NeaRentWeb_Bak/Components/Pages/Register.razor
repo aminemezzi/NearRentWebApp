@@ -1,0 +1,15 @@
+﻿@page "/register"
+
+@inject NavigationManager Navigation
+@inject AuthenticationStateProvider AuthenticationStateProvider
+
+@code {
+    protected override async Task OnInitializedAsync()
+    {
+        AuthenticationState authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+        if(authState == null || !authState.User.Identity.IsAuthenticated)
+        {
+            Navigation.NavigateTo("http://localhost:8080/realms/NeaRent/protocol/openid-connect/registrations?client_id=nearent&response_type=code&scope=openid email&redirect_uri=https://localhost:44394/");
+        }        
+    }
+}

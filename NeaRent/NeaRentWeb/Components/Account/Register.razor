@@ -1,0 +1,2529 @@
+﻿@page "/register"
+@page "/register/{userid:guid}"
+
+@using Geocoding
+@using Geocoding.Google
+@using SixLabors.ImageSharp
+@using SixLabors.ImageSharp.Drawing
+@using SixLabors.ImageSharp.Drawing.Processing
+@using SixLabors.ImageSharp.Processing;
+@using SixLabors.ImageSharp.Formats.Jpeg
+@using SixLabors.Fonts
+@using System.Net.Http
+@using System.IO
+
+@layout RegisterLayout
+
+@implements IAsyncDisposable
+
+@inject Endpoints endpoints
+@inject AuthenticationStateProvider authStateProvider
+@inject AzureSettings azureSettings
+@inject GoogleMapSettings googleMapSettings
+@inject IJSRuntime JsRuntime
+@inject SiteSettings siteSettings
+
+<div class="step">
+    <div class="step-heading">
+        @if (step > 0)
+        {
+            <div class="step-no">Step @step.ToString()</div>
+            <div class="step-colon">:</div>
+        }
+        <div class="step-name">@stepName[step]</div>
+    </div>
+    <div class="step-content">
+        @if (needToCreateLogin)
+        {
+            <div class="login-credentials">
+                <div class="signin-with">Sign in with:</div>
+                <div class="login-providers">
+                    <button class="provider-button" @onclick="SignInWithGoogleAsync"><img class="provider-logo" src="images\google_logo.png" />Google</button>
+                </div>
+                <div class="or">or</div>
+                <div class="signin-with">Create a new account:</div>
+                <EditForm class="login-form" Model="@loginForm" OnValidSubmit="@Submit" FormName="LoginForm">
+                    <DataAnnotationsValidator />
+                    <div class="login-form-text">Your email address</div>
+                    <div class="login-email-container">
+                        <i class="bi bi-envelope"></i>
+                        <input class="login-email" type="email" @bind-value=loginForm.Username />
+                    </div>
+                    <ValidationMessage For=@(() => loginForm.Username) />
+                    <div class="login-form-text">Your password</div>
+                    <div class="login-email-container">
+                        <i class="bi bi-lock"></i>
+                        <input class="login-password" type="password" @bind-value=loginForm.Password />
+                    </div>
+                    <ValidationMessage For=@(() => loginForm.Password) />
+                    <div class="login-form-text">Please confirm your password</div>
+                    <div class="login-email-container">
+                        <i class="bi bi-lock"></i>
+                        <input class="login-password" type="password" @bind-value=loginForm.PasswordVerify />
+                    </div>
+                    <ValidationMessage For=@(() => loginForm.PasswordVerify) />
+                    <button class="register-button" disabled=@formInvalid>Register</button>
+                </EditForm>
+            </div>
+            @if (loginMessage != null)
+            {
+                <div class="alert alert-danger" role="alert" style="width: 50%; align-self: center;">
+                    @loginMessage
+                </div>
+            }
+        }
+        else
+        {
+            <div class="step-message">@stepMessage[step]</div>
+            @if (user != null)
+            {
+                @switch (step)
+                {
+                    case 0: // Register login name and password - don't display anything
+                        <div></div>
+                        break;
+                    case 1:
+                        <div class="step1">
+                            <div class="card step1-card">
+                                <div class="card-body step1-card-content">
+                                    <img src="images/delivery-box 1.png" />
+                                    I am an owner, renting out
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="radio" name="flexRadioDefault"
+                                               id="optOwner" checked="@(user.CurrentStatus == 1)"
+                                               @onchange="@(() => user.CurrentStatus = 1)">
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="card step1-card">
+                                <div class="card-body step1-card-content">
+                                    <img src="images/money-back-guarantee 1.png" />
+                                    I am a renter, renting from others
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="radio" name="flexRadioDefault"
+                                               id="optRenter" checked="@(user.CurrentStatus == 0 || user.CurrentStatus == 2)"
+                                               @onchange="@(() => user.CurrentStatus = 2)">
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        break;
+                    case 2:
+                        <div class="step-container">
+                            <EditForm FormName="Step2Form" class="form" EditContext="step2Context">
+                                <DataAnnotationsValidator />
+                                <div>
+                                    <input class="step-text" type="text" placeholder="First Name" @bind-value=step2Form.FirstName />
+                                    <ValidationMessage For=@(() => step2Form.FirstName) />
+                                </div>
+                                <div>
+                                    <input class="step-text" type="text" placeholder="Last Name" @bind-value=step2Form.LastName />
+                                    <ValidationMessage For=@(() => step2Form.LastName) />
+                                </div>
+                            </EditForm>
+                        </div>
+                        break;
+                    case 3:
+                        <div class="step-container step-container-wide">
+                            <EditForm FormName="Step3Form" class="form form-wide" EditContext="step3Context">
+                                <DataAnnotationsValidator />
+                                <div>
+                                    <InputSelect class="step-dropdown" @bind-Value="@step3Form.CountryID">
+                                        @{
+                                            foreach (CountryCode countryCode in countryCodes)
+                                            {
+                                                    <option value="@countryCode.CountryID">@countryCode.CountryName</option>
+                                            }
+                                        }
+                                    </InputSelect>
+                                    <ValidationMessage For=@(() => step3Form.CountryID) />
+                                </div>
+                                <div>
+                                    <input class="step-text" type="tel" placeholder="Phone Number" @bind-value=step3Form.PhoneNumber />
+                                    <ValidationMessage For=@(() => step3Form.PhoneNumber) />
+                                </div>
+                                <div class="additional-text" style="grid-column: 1 / span 2; justify-self: center;">We will call or send you a text message to verify your number. </div>
+                            </EditForm>
+                        </div>
+                        break;
+                    case 4:
+                        <div class="step-container">
+                            <EditForm FormName="Step4Form" class="form" EditContext="step4Context">
+                                <DataAnnotationsValidator />
+                                <div class="additional-text"><span>Please enter the 4-digit code neaRent just sent to </span><span class="additional-text-bold">@step3Form.PhoneNumber</span></div>
+                                <div style="display: grid;">
+                                    <input class="step-text verification-textbox" type="text" placeholder="- - - -" @bind-value=step4Form.VerifyCode />
+                                    <ValidationMessage For=@(() => step4Form.VerifyCode) />
+                                </div>
+                                <div class="verification-sms additional-text">
+                                    <div>Verification SMS not in yet?</div>
+                                    <div class="verification-sms-options">
+                                        <div>Call Instead</div>
+                                        <div class="additional-text-bold" @onclick=SendVerificationCodeAgain>Send again</div>
+                                    </div>
+                                </div>
+                            </EditForm>
+                        </div>
+                        break;
+                    case 5:
+                        <div class="step-container">
+                            <EditForm FormName="Step5Form" class="form-location" EditContext="step5Context">
+                                <DataAnnotationsValidator />
+                                <div id="location-grid" class="location-container" @onclick=StartLocationAnimation>
+                                    <div class="location-text">
+                                        <i class="bi bi-geo-alt location-marker"></i>
+                                        <input @ref="locationBox" id="locationBox" class="step-text-location" type="text" placeholder="Your location" @bind-value=step5Form.Location />
+                                    </div>
+                                    <div id="location-button" class="location-button-holder" @onclick=FindLocation>
+                                        <i class="bi bi-cursor location-marker"></i>
+                                        Locate me
+                                    </div>
+                                </div>
+                                @if (step5Form.Location.Length > 0)
+                                {
+                                    <div class="location-details-container">
+                                        <div class="step-message">Select your desired location area by choosing a radius between 1 km and 50 km.</div>
+                                        <div class="location-details-gadget">
+                                            <img src="images/shoes.svg" />
+                                            <input type="range" class="form-range" min="1" max="50" step="0.5" value=@rangeValue @oninput="@((args) => RangeValCalc(args.Value.ToString()))">
+                                            <img src="images/route.svg" />
+                                            <div>
+                                                <div class="location-distance-display-header" --mini-form-text>Up to</div>
+                                                <div class="location-distance-display">
+                                                    <i class="bi bi-geo"></i>
+                                                    <input class="location-distance-text" type="text" value=@rangeText @oninput="@((args) => RangeTxtCalc(args.Value.ToString()))" />
+                                                    <div class="location-distance-km">km</div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                }
+                                <div class="map-container">
+                                    <GoogleMap @ref="@mapStep5" CssClass="map" Height="100%" Id="map1" Options="@mapOptionsStep5" OnAfterInit="async () => await OnAfterMapInitStep5()"></GoogleMap>
+                                </div>
+                            </EditForm>
+                        </div>
+                        break;
+                    case 6:
+                        <div class="step-container">
+                            <EditForm FormName="Step6Form" class="form-location-validation" EditContext="step6Context">
+                                <DataAnnotationsValidator />
+                                <div class="step-title">Country/Region</div>
+                                <InputSelect class="step-dropdown" @bind-Value="locationCountryID">
+                                    @foreach (CountryCode countryCode in countryCodes)
+                                    {
+                                        <option value="@countryCode.CountryID">@countryCode.CountryName</option>
+                                    }
+                                </InputSelect>
+                                <ValidationMessage For=@(() => step6Form.CountryID) />
+
+                                <div class="step-title">District (if any)</div>
+                                <input class="step-text" type="tel" @bind-value=step6Form.District />
+
+                                <div class="step-title">Street</div>
+                                <input class="step-text" type="tel" @bind-value=step6Form.Street />
+                                <ValidationMessage For=@(() => step6Form.Street) />
+
+                                <div class="step-title">Flat, floor, building (if any)</div>
+                                <input class="step-text" type="tel" @bind-value=step6Form.FlatFloorBldg />
+
+                                <div class="step-title">Post code</div>
+                                <input class="step-text" type="tel" @bind-value=step6Form.PostCode />
+                                <ValidationMessage For=@(() => step6Form.PostCode) />
+
+                                <div class="step-title">Area</div>
+                                <input class="step-text" type="tel" @bind-value=step6Form.Area />
+                                <ValidationMessage For=@(() => step6Form.Area) />
+
+                                <div class="step-title">Province</div>
+                                <input class="step-text" type="tel" @bind-value=step6Form.Province />
+                                <ValidationMessage For=@(() => step6Form.Province) />
+
+                                <div class="exact-location">
+                                    <div class="step-title">Show your exact location</div>
+                                    <label class="switch exact-location-switch">
+                                        <input type="checkbox" @bind=step6Form.Exact />
+                                        <span class="slider round"></span>
+                                    </label>
+                                </div>
+                                <div class="step-title">Clearly present your address to guests. We prioritize your privacy, sharing the location only after a renting is confirmed.</div>
+
+                            </EditForm>
+                        </div>
+                        break;
+                    case 7:
+                        <div class="step-container">
+                            <div class="map-container">
+                                <GoogleMap @ref="@mapStep7" CssClass="map" Height="100%" Id="map2" Options="@mapOptionsStep7" OnAfterInit="async () => await OnAfterMapInitStep7()"></GoogleMap>
+                            </div>
+                        </div>
+                        break;
+                    case 8:
+                        <div class="step-container-identification">
+                            <EditForm FormName="Step8Form" class="form-identity" EditContext="step8Context">
+                                <DataAnnotationsValidator />
+                                <div>
+                                    <input type="radio" class="form-check-input" name="IDs" checked="@step8Form.IdentityCard" @onchange="@(() => IDTypeChanged(1))" />
+                                    <label>Identity Card</label>
+                                </div>
+                                <div>
+                                    <input type="radio" class="form-check-input" name="IDs" checked="@step8Form.DrivingLicense" @onchange="@(() => IDTypeChanged(2))" />
+                                    <label>Driving License</label>
+                                </div>
+                                <div>
+                                    <input type="radio" class="form-check-input" name="IDs" checked="@step8Form.Passport" @onchange="@(() => IDTypeChanged(3))" />
+                                    <label>Passport</label>
+                                </div>
+                                <ValidationMessage For=@(() => step8Form.IDSelected) />
+                                @if (showStep8Validation)
+                                {
+                                    <div class="validation-message">@step8ValidationMessage</div>
+                                }
+                                <div class="step-message">
+                                    Please ensure that the image of your ID card, driving license or passport is clear, well-lit, and free from blur.
+                                </div>
+                                <div class="upload-instructions step-message">
+                                    <div class="upload-instructions-left">Supported formats: JPEG, PNG</div>
+                                    <div class="upload-instructions-right">Maximum size:&nbsp<span>@siteSettings.MaxFileSize.ToString()</span>MB</div>
+                                </div>
+                                <div @ref="dropZoneElement8" class="drop-zone step-message">
+                                    <p>Click, drag and drop, or paste your files here</p>
+                                    <InputFile OnChange="@OnFileChange" @ref="inputFile8" />
+                                </div>
+                                <ValidationMessage For=@(() => step8Form.File) />
+                            </EditForm>
+                        </div>
+                        break;
+                    case 9:
+                        <div class="step-container">
+                            <EditForm FormName="Step9Form" class="form-identity" EditContext="step9Context">
+                                <DataAnnotationsValidator />
+                                <div class="upload-instructions step-message" style="width: 25em">
+                                    <div class="upload-instructions-left">Supported formats: JPEG, PNG</div>
+                                    <div class="upload-instructions-right">Maximum size:&nbsp<span>@siteSettings.MaxFileSize.ToString()</span>MB</div>
+                                </div>
+                                <div class="dropzone-grid">
+                                    <div @ref="dropZoneElement9" class="drop-zone step-message">
+                                        <p>Click, drag and drop, or paste your files here</p>
+                                        <InputFile OnChange="@OnSelfieChange" @ref="inputFile9" />
+                                    </div>
+                                    <div class="dropzone-button">
+                                        <button class="cam-button" @onclick="@(() => ShowTheWebCam())"><span><i class="bi bi-webcam"></i>&nbsp;Web Cam</span></button>
+                                    </div>
+
+                                    @if (showWebCam)
+                                    {
+                                        <div>
+                                            <video id="videoFeed" width="240" height="180" />
+                                        </div>
+                                        @if (!string.IsNullOrEmpty(frameUri))
+                                        {
+                                            <img src="@frameUri" width="240" height="180" style="object-fit:contain" />
+                                        }
+
+                                        <canvas class="d-none" id="currentFrame" width="240" height="180" />
+
+                                        <br />
+
+                                        <button class="cam-button" @onclick="@(() => SnapWebCam())">Grab Image</button>
+                                    }
+                                </div>
+                            </EditForm>
+                        </div>
+                        break;
+                    case 10:
+                        <div class="step-container step10-content">
+                            <EditForm FormName="Step10Form" class="form" EditContext="step10Context">
+                                <DataAnnotationsValidator />
+                                <div class="like-buttons">
+                                    @foreach (Products.Models.Category category in categories)
+                                    {
+                                        if (!step10Form.Categories.Contains(category.Id))
+                                        {
+                                            <button class="like-button" @onclick="@(() => LikeButtonClicked(category.Id))">@category.Name</button>
+                                        }
+                                    }
+                                </div>
+                                <div class="like-items">
+                                    <div>We will show you the categories you pick:</div>
+                                    <div>
+                                        @foreach (Products.Models.Category category in categories.Where(x => step10Form.Categories.Contains(x.Id)).ToList())
+                                        {
+                                            <div class="like-item">
+                                                <div class="like-item-left" @onclick="@(() => UnLikeClicked(category.Id))">@category.Name</div>
+                                                <i class="bi bi-x-square like-item-right"></i>
+                                            </div>
+                                        }
+                                    </div>
+                                </div>
+                            </EditForm>
+                        </div>
+                        break;
+                    default:
+                        break;
+                }
+            }
+        }
+    </div>
+</div>
+
+@code {
+    [Parameter]
+    public Guid? userid
+    {
+        get;
+        set;
+    }
+
+    [Inject]
+    private NotifyResumeService? notifyResumeService
+    {
+        get;
+        set;
+    }
+
+    NotifyResumeService NotifiyResumeService => notifyResumeService!;
+
+    LoginForm loginForm = new LoginForm();
+    Step2Form step2Form = new Step2Form();
+    Step3Form step3Form = new Step3Form();
+    Step4Form step4Form = new Step4Form();
+    Step5Form step5Form = new Step5Form();
+    Step6Form step6Form = new Step6Form();
+    Step8Form step8Form = new Step8Form();
+    Step9Form step9Form = new Step9Form();
+    Step10Form step10Form = new Step10Form();
+
+    EditContext? loginFormContext;
+    EditContext? step2Context;
+    EditContext? step3Context;
+    EditContext? step4Context;
+    EditContext? step5Context;
+    EditContext? step6Context;
+    EditContext? step8Context;
+    EditContext? step9Context;
+    EditContext? step10Context;
+
+    ElementReference locationBox;
+
+    double rangeValue = 10;
+    string rangeText = "10";
+
+    GoogleMap mapStep5;
+    GoogleMap mapStep7;
+    MapOptions mapOptionsStep5;
+    MapOptions mapOptionsStep7;
+    LatLngLiteral latlngStep5 = new LatLngLiteral(0.0, 0.0);
+    LatLngLiteral latlngStep7 = new LatLngLiteral(0.0, 0.0);
+    Marker markerStep5;
+    Marker markerStep7;
+    MarkerOptions markerOptionsStep5;
+    MarkerOptions markerOptionsStep7;
+    Autocomplete autocomplete;
+    CircleList circleList = null;
+    Dictionary<string, CircleOptions> circleOptionsByRef = new Dictionary<string, CircleOptions>();
+    MapEventListener? mapClickEvent;
+
+    IGeocoder geocoder = new GoogleGeocoder();
+
+    UserManager.Models.User? user
+    {
+        get;
+        set;
+    } = null;
+
+    List<UserManager.Models.AddressCountry> countries = new List<UserManager.Models.AddressCountry>();
+    List<CountryCode> countryCodes = new List<CountryCode>();
+    List<Products.Models.Category> categories = new List<Products.Models.Category>();
+
+    //int phoneCountryID = 1;
+    int locationCountryID = 1;
+
+    bool needToCreateLogin
+    {
+        get;
+        set;
+    } = false;
+
+    int step
+    {
+        get;
+        set;
+    } = 0;
+
+    bool formInvalid
+    {
+        get;
+        set;
+    } = false;
+    string? loginMessage
+    {
+        get;
+        set;
+    } = null;
+
+    string verificationCode
+    {
+        get;
+        set;
+    } = "0000";
+
+    bool verified
+    {
+        get;
+        set;
+    } = false;
+
+    List<string> stepName = new List<string> {
+        "Please supply an email address and password for your new account.",
+        "Join NeaRent as an owner or renter",
+        "Let us hear about you first",
+        "Verify your phone number",
+                "Verify your phone number",
+        "Identify where to find and rent",
+        "Validate Your Location",
+        "Make sure the pin is on the right place",
+        "Verify your identity with official ID",
+        "Confirm identity with a real-time image",
+        "Tell us what you like",
+    };
+    List<string> stepMessage = new List<string> {
+        "",
+        "Don't worry, this can be changed later.",
+        "Please use your real name as this will be required for identity verification.",
+        "Verify your phone number by your selected country's.",
+        "Enter the verification code sent to your phone to complete the number verification process and secure your account.",
+        "Map out your rental location for easy discovery by renters.",
+        "Renters can access your address upon renting confirmation only.",
+        "We prioritize your privacy, sharing the location only after a renting is confirmed.",
+        "This will help us verify your information, ensuring secure transactions and enabling record publication.",
+        "Submit a clear, well-lit, real-time selfie without wearing hats or glasses to confirm identity consistency with the provided ID. Ensure your face is fully visible to facilitate accurate identity verification.",
+        "Almost done! Tell us what kind of categories you’d like to see. (Optional)",
+    };
+
+    ElementReference dropZoneElement8;
+    ElementReference dropZoneElement9;
+    InputFile inputFile8;
+    InputFile inputFile9;
+
+    IJSObjectReference _module;
+    IJSObjectReference _dropZoneInstance;
+
+    string src;
+
+    bool showStep8Validation
+    {
+        get;
+        set;
+    } = false;
+
+    bool showStep9Validation
+    {
+        get;
+        set;
+    } = false;
+
+    string step8ValidationMessage
+    {
+        get;
+        set;
+    } = "";
+
+    string step9ValidationMessage
+    {
+        get;
+        set;
+    } = "";
+
+    bool showWebCam
+    {
+        get;
+        set;
+    } = false;
+
+    private string frameUri;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await PopuplateCountries();
+        await PopulateCategories();
+
+        loginFormContext = new(loginForm);
+        loginFormContext.OnFieldChanged += HandleFieldChanged;
+        loginMessage = null;
+
+        step2Context = new(step2Form);
+        step3Context = new(step3Form);
+        step4Context = new(step4Form);
+        step5Context = new(step5Form);
+        step6Context = new(step6Form);
+        step8Context = new(step8Form);
+        step9Context = new(step9Form);
+        step10Context = new(step10Form);
+
+        notifyResumeService.ResumeClicked += this.ResumeClicked;
+        notifyResumeService.BackClicked += this.BackClicked;
+        notifyResumeService.NextClicked += this.NextClicked;
+        notifyResumeService.SaveClicked += this.SaveClicked;
+
+        mapOptionsStep5 = new MapOptions()
+            {
+                DisableDefaultUI = true,
+                Zoom = 13,
+                Center = latlngStep5,
+                MapTypeId = MapTypeId.Roadmap
+            };
+
+        mapOptionsStep7 = new MapOptions()
+            {
+                DisableDefaultUI = true,
+                Zoom = 13,
+                Center = latlngStep7,
+                MapTypeId = MapTypeId.Roadmap,
+                Draggable = false,
+                ClickableIcons = false
+            };
+
+        geocoder = new GoogleGeocoder()
+            {
+                ApiKey = googleMapSettings.APIKey
+            };
+
+        // step5Form.Location = geocoder.ReverseGeocodeAsync(new Geocoding.Location(latlngStep5.Lat, latlngStep5.Lng)).Result.First().FormattedAddress;
+
+        step8Form.IdentityCard = true;
+        step8Form.DrivingLicense = false;
+        step8Form.Passport = false;
+        step8Form.IDSelected = true;
+
+        if (userid != null)
+        {
+            // var request = new HttpRequestMessage(HttpMethod.Get, endpoints.UserManager + $"UserRegistrations/GetUserRegistrationForUser/{userid}");
+
+            // HttpClient client = new HttpClient();
+
+            // using (var response = await client.SendAsync(request))
+            // {
+            //     if (response.IsSuccessStatusCode)
+            //     {
+            //         string json = await response.Content.ReadAsStringAsync();
+
+            //         UserManager.Models.UserRegistration registration = JsonSerializer.Deserialize<UserManager.Models.UserRegistration>(json, new JsonSerializerOptions(JsonSerializerDefaults.Web));
+
+            //         request = new HttpRequestMessage(HttpMethod.Get, endpoints.UserManager + $"UserCategoryPreferences/{userid}");
+
+            //         UserManager.Models.UserCategoryPreference categories = new UserManager.Models.UserCategoryPreference();
+
+            //         using (var response2 = await client.SendAsync(request))
+            //         {
+            //             if (response2.IsSuccessStatusCode)
+            //             {
+            //                 string json2 = await response2.Content.ReadAsStringAsync();
+
+            //                 categories = JsonSerializer.Deserialize<UserManager.Models.UserCategoryPreference>(json, new JsonSerializerOptions(JsonSerializerDefaults.Web));
+            //             }
+            //         }
+
+            //         await PopulateSteps(registration, categories);
+
+            //         step = registration.LastStep;
+            //         notifyResumeService.ForcedStepChange(this, new ResumeEventArgs(step));
+
+
+            //     }
+            //     else
+            //     {
+                    step = 1;
+                    notifyResumeService.ForcedStepChange(this, new ResumeEventArgs(step));
+            //     }
+            // }
+        }
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            if (userid == null)
+            {
+                notifyResumeService.EnteredCredentialMode(this, new ResumeEventArgs());
+                needToCreateLogin = true;
+                step = 0;
+            }
+            else
+            {
+                notifyResumeService.EnteredRegisterMode(this, new ResumeEventArgs());
+                needToCreateLogin = false;
+
+                await GetUser();
+                StateHasChanged();
+            }
+        }
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        notifyResumeService.ResumeClicked -= this.ResumeClicked;
+        notifyResumeService.BackClicked -= this.BackClicked;
+        notifyResumeService.NextClicked -= this.NextClicked;
+        notifyResumeService.SaveClicked -= this.SaveClicked;
+
+        if (loginFormContext is not null)
+        {
+            loginFormContext.OnFieldChanged -= HandleFieldChanged;
+        }
+
+        if (_dropZoneInstance != null)
+        {
+            await _dropZoneInstance.InvokeVoidAsync("dispose");
+            await _dropZoneInstance.DisposeAsync();
+        }
+
+        if (_module != null)
+        {
+            await _module.DisposeAsync();
+        }
+    }
+
+    private async Task PopulateSteps(UserManager.Models.UserRegistration registration, UserManager.Models.UserCategoryPreference userCategories)
+    {
+        user.CurrentStatus = registration.UserType;
+
+        //step2Form = new Step2Form();
+        step2Form.FirstName = registration.Name;
+        step2Form.LastName = registration.Surname;
+
+        //step3Form = new Step3Form();
+        step3Form.CountryID = registration.PhoneCountryId;
+        step3Form.PhoneNumber = registration.PhoneNumber;
+
+        //step4Form = new Step4Form();
+        step4Form.VerifyCodeCompare = "1234";
+        step4Form.VerifyCode = "1234";
+
+        //step5Form = new Step5Form();
+        step5Form.Distance = registration.Distance;
+        step5Form.LatLng = new LatLngLiteral(registration.AddressLat, registration.AddressLng);
+        step5Form.Location = registration.Address;
+        step5Form.Place = new PlaceResult();
+        step5Form.Place.Geometry = new PlaceGeometry();
+        step5Form.Place.Geometry.Location = step5Form.LatLng;
+
+        //step6Form = new Step6Form();
+        step6Form.Area = registration.Area;
+        step6Form.CountryCode = registration.CountryId.ToString();
+        step6Form.District = registration.District;
+        step6Form.Exact = registration.ShowExactLocation;
+        step6Form.FlatFloorBldg = registration.Flat;
+        step6Form.PlaceSet = true;
+        step6Form.PostCode = registration.PostCode;
+        step6Form.Province = registration.Province;
+        step6Form.Street = registration.Street;
+
+        //step8Form = new Step8Form();
+        step8Form.IdentityType = registration.IdentityType;
+        step8Form.IDSelected = true;
+        step8Form.File = registration.IdentityImage;
+
+        //step9Form = new Step9Form();
+        step9Form.File = registration.SelfieImage;
+
+        //step10Form = new Step10Form();
+        step10Form.Categories = categories.Select(x => x.Id).ToList();
+    }
+
+    // Called when a new identity file is uploaded
+    private async Task OnFileChange(InputFileChangeEventArgs e)
+    {
+        showStep8Validation = false;
+        int maxFileSize = siteSettings.MaxFileSize * 1024 * 1024;
+        List<string> extensions = new List<string>() { ".png", ".jpg" };
+
+        if (e.File.Size > maxFileSize)
+        {
+            showStep8Validation = true;
+            step8ValidationMessage = string.Format($"Maximum upload file size is {0} MB.", siteSettings.MaxFileSize.ToString());
+            return;
+        }
+
+        if (!extensions.Contains(System.IO.Path.GetExtension(e.File.Name).ToLower()))
+        {
+            showStep8Validation = true;
+            step8ValidationMessage = "Only .png and .jpg files are allowed.";
+            return;
+        }
+
+        using var stream = e.File.OpenReadStream(maxFileSize);
+        using var ms = new MemoryStream();
+        await stream.CopyToAsync(ms);
+        src = "data:" + e.File.ContentType + ";base64," + Convert.ToBase64String(ms.ToArray());
+
+        step8Form.File = src;
+        step8Form.Filename = e.File.Name;
+    }
+
+    // Called when a new selfie file is uploaded
+    private async Task OnSelfieChange(InputFileChangeEventArgs e)
+    {
+        showStep9Validation = false;
+        int maxFileSize = siteSettings.MaxFileSize * 1024 * 1024;
+        List<string> extensions = new List<string>() { ".png", ".jpg" };
+
+        if (e.File.Size > maxFileSize)
+        {
+            showStep9Validation = true;
+            step9ValidationMessage = string.Format($"Maximum upload file size is {0} MB.", siteSettings.MaxFileSize.ToString());
+            return;
+        }
+
+        if (!extensions.Contains(System.IO.Path.GetExtension(e.File.Name).ToLower()))
+        {
+            showStep9Validation = true;
+            step9ValidationMessage = "Only .png and .jpg files are allowed.";
+            return;
+        }
+
+        using var stream = e.File.OpenReadStream(maxFileSize);
+        using var ms = new MemoryStream();
+        await stream.CopyToAsync(ms);
+        src = "data:" + e.File.ContentType + ";base64," + Convert.ToBase64String(ms.ToArray());
+
+        step9Form.File = src;
+        step9Form.Filename = e.File.Name;
+    }
+
+    private async Task PopuplateCountries()
+    {
+        var request = new HttpRequestMessage(HttpMethod.Get, endpoints.UserManager + $"AddressCountries");
+
+        HttpClient client = new HttpClient();
+
+        using (var response = await client.SendAsync(request))
+        {
+            if (response.IsSuccessStatusCode)
+            {
+                string json = await response.Content.ReadAsStringAsync();
+                countries = JsonSerializer.Deserialize<List<UserManager.Models.AddressCountry>>(json, new JsonSerializerOptions(JsonSerializerDefaults.Web));
+
+                countryCodes.Clear();
+
+                if (countries.Count > 1)
+                {
+                    foreach (UserManager.Models.AddressCountry country in countries.OrderBy(o => o.Name).ToList())
+                    {
+                        CountryCode code = new CountryCode();
+                        code.CountryID = country.Id;
+                        code.CountryName = country.Name;
+                        code.PhoneCode = country.PhoneCode;
+                        code.ShortCode = country.InitialsShort;
+                        countryCodes.Add(code);
+                    }
+                }
+            }
+        }
+    }
+
+    private async Task PopulateCategories()
+    {
+        var request = new HttpRequestMessage(HttpMethod.Get, endpoints.Products + $"Categories");
+
+        HttpClient client = new HttpClient();
+
+        using (var response = await client.SendAsync(request))
+        {
+            if (response.IsSuccessStatusCode)
+            {
+                string json = await response.Content.ReadAsStringAsync();
+
+                categories.Clear();
+
+                categories = JsonSerializer.Deserialize<List<Products.Models.Category>>(json, new JsonSerializerOptions(JsonSerializerDefaults.Web));
+            }
+        }
+    }
+
+    public async Task GetUser()
+    {
+        var request = new HttpRequestMessage(HttpMethod.Get, endpoints.UserManager + $"Users/{userid}");
+
+        HttpClient client = new HttpClient();
+
+        using (var response = await client.SendAsync(request))
+        {
+            if (response.IsSuccessStatusCode)
+            {
+                string json = await response.Content.ReadAsStringAsync();
+                user = JsonSerializer.Deserialize<UserManager.Models.User>(json, new JsonSerializerOptions(JsonSerializerDefaults.Web));
+                if (user != null && user.CurrentStatus == 0)
+                {
+                    user.CurrentStatus = 1;
+                }
+            }
+            else
+            {
+                NavigationManager.NavigateTo("/");
+            }
+        }
+
+    }
+
+    private void ResumeClicked(object? sender, EventArgs e)
+    {
+        ResumeLater();
+        NavigationManager.NavigateTo("/");
+    }
+
+    private void BackClicked(object? sender, EventArgs e)
+    {
+        BackClicked();
+    }
+
+    private async Task BackClicked()
+    {
+        bool valid = false;
+        switch (step)
+        {
+            case 0:
+                valid = true;
+                break;
+            case 1:
+                valid = true;
+                break;
+            case 2:
+                valid = step2Context.Validate();
+                break;
+            case 3:
+                valid = step3Context.Validate();
+                break;
+            case 4:
+                valid = true;
+                break;
+            case 5:
+                valid = true;
+                break;
+            case 6:
+                valid = true;
+                break;
+            case 9:
+                valid = true;
+                await JsRuntime.InvokeVoidAsync("stopVideo", "videoFeed");
+                break;
+            default:
+                valid = true;
+                break;
+        }
+        if (valid)
+        {
+            step--;
+            StateHasChanged();
+            notifyResumeService.BackMayProgress(this, new ResumeEventArgs());
+        }
+    }
+
+    private void NextClicked(object? sender, EventArgs e)
+    {
+        NextClicked();
+    }
+
+    private async Task NextClicked()
+    {
+        bool valid = false;
+        switch (step)
+        {
+            case 0:
+                valid = true;
+                break;
+            case 1:
+                valid = true;
+                break;
+            case 2:
+                valid = step2Context.Validate();
+                break;
+            case 3:
+                valid = step3Context.Validate();
+                if (valid)
+                {
+                    verificationCode = GenerateVerificationCode();
+                    step4Form.VerifyCode = verificationCode;
+                    step4Form.VerifyCodeCompare = verificationCode;
+                }
+                break;
+            case 4:
+                valid = step4Context.Validate();
+                break;
+            case 5:
+                valid = step5Context.Validate();
+
+                if (valid && !step6Form.PlaceSet)
+                {
+                    IEnumerable<Geocoding.Address> addresses = await geocoder.ReverseGeocodeAsync(latlngStep5.Lat, latlngStep5.Lng);
+
+                    if (addresses != null && addresses.Count() > 0)
+                    {
+                        Geocoding.Address address = addresses.First();
+
+                        step5Form.Location = address.FormattedAddress;
+
+                        foreach (Geocoding.Google.GoogleAddressComponent item in ((Geocoding.Google.GoogleAddress) address).Components)
+                        {
+                            foreach (Geocoding.Google.GoogleAddressType type in item.Types)
+                            {
+                                switch (type)
+                                {
+                                    case GoogleAddressType.Country:
+                                        step6Form.CountryName = item.LongName;
+                                        step6Form.CountryCode = item.ShortName;
+                                        break;
+                                    case GoogleAddressType.StreetNumber:
+                                        step6Form.StreetNumber = item.LongName;
+                                        break;
+                                    case GoogleAddressType.Route:
+                                        step6Form.Street = item.LongName;
+                                        break;
+                                    case GoogleAddressType.AdministrativeAreaLevel1:
+                                        step6Form.Province = item.LongName;
+                                        break;
+                                    case GoogleAddressType.AdministrativeAreaLevel2:
+                                        step6Form.District = item.LongName;
+                                        break;
+                                    case GoogleAddressType.PostalCode:
+                                        step6Form.PostCode = item.LongName;
+                                        break;
+                                    case GoogleAddressType.Locality:
+                                        step6Form.Area = item.LongName;
+                                        break;
+                                    default:
+                                        break;
+                                }
+                            }
+                        }
+                    }
+
+                    step6Form.Street = (step6Form.StreetNumber + " " + step6Form.Street).Trim();
+
+                    step6Form.PlaceSet = true;
+
+                    if (step6Form.CountryCode.Length > 0)
+                    {
+                        CountryCode? country = countryCodes.Where(x => x.ShortCode == step6Form.CountryCode).FirstOrDefault();
+
+                        if (country != null)
+                        {
+                            locationCountryID = country.CountryID;
+                        }
+                    }
+                }
+                break;
+            case 6:
+                valid = step6Context.Validate();
+                break;
+            case 7:
+                valid = true;
+                break;
+            case 8:
+
+                valid = step8Context.Validate();
+
+                break;
+            case 9:
+                valid = step9Context.Validate();
+                break;
+            case 10:
+                valid = true;
+                break;
+            default:
+                valid = true;
+                break;
+        }
+
+        if (valid)
+        {
+            step++;
+            StateHasChanged();
+            notifyResumeService.NextMayProgress(this, new ResumeEventArgs());
+
+            if (step == 8)
+            {
+                _module = await JsRuntime.InvokeAsync<IJSObjectReference>("import", "./scripts/dropZone.js");
+                _dropZoneInstance = await _module.InvokeAsync<IJSObjectReference>("initializeFileDropZone", dropZoneElement8, inputFile8.Element);
+            }
+
+            if (step == 9)
+            {
+                _module = await JsRuntime.InvokeAsync<IJSObjectReference>("import", "./scripts/dropZone.js");
+                _dropZoneInstance = await _module.InvokeAsync<IJSObjectReference>("initializeFileDropZone", dropZoneElement9, inputFile9.Element);
+            }
+        }
+    }
+
+    private async void SaveClicked(object? sender, EventArgs e)
+    {
+        UserManager.Models.UserRegistration userRegistration = new UserManager.Models.UserRegistration();
+
+        userRegistration.Id = Guid.NewGuid();
+        userRegistration.AzureObjectId = (Guid) userid;
+        userRegistration.UserType = user.CurrentStatus;
+        userRegistration.Name = step2Form.FirstName;
+        userRegistration.Surname = step2Form.LastName;
+        userRegistration.PhoneCountryId = step3Form.CountryID;
+        userRegistration.PhoneNumber = step3Form.PhoneNumber;
+        userRegistration.PhoneVerified = step4Form.VerifyCode == step4Form.VerifyCodeCompare;
+        userRegistration.Address = step5Form.Location;
+        userRegistration.AddressLat = Decimal.Parse(step5Form.LatLng.Lat.ToString());
+        userRegistration.AddressLng = Decimal.Parse(step5Form.LatLng.Lng.ToString());
+        userRegistration.CountryId = locationCountryID;
+        userRegistration.District = step6Form.District;
+        userRegistration.Street = step6Form.Street;
+        userRegistration.Flat = step6Form.FlatFloorBldg;
+        userRegistration.PostCode = step6Form.PostCode;
+        userRegistration.Area = step6Form.Area;
+        userRegistration.Province = step6Form.Province;
+        userRegistration.Distance = step5Form.Distance;
+        userRegistration.ShowExactLocation = step6Form.Exact;
+        userRegistration.IdentityType = step8Form.IdentityType;
+        userRegistration.IdentityImage = step8Form.File;
+        userRegistration.SelfieImage = step9Form.File;
+        userRegistration.Status = 1;
+        userRegistration.LastStep = 0;
+        userRegistration.Active = true;
+
+        HttpClient client = new HttpClient();
+
+        HttpResponseMessage response = await client.PostAsJsonAsync(endpoints.UserManager + $"UserRegistrations", userRegistration);
+        response.EnsureSuccessStatusCode();
+
+        if (response.IsSuccessStatusCode)
+        {
+            List<UserManager.Models.UserCategoryPreference> preferences = new List<UserManager.Models.UserCategoryPreference>();
+
+            foreach (Guid item in step10Form.Categories)
+            {
+                UserManager.Models.UserCategoryPreference preference = new UserManager.Models.UserCategoryPreference();
+                preference.Id = Guid.NewGuid();
+                preference.AzureObjectId = user.AzureObjectId;
+                preference.CategoryId = item;
+                preferences.Add(preference);
+            }
+
+            if (preferences.Count > 0)
+            {
+                response = await client.PostAsJsonAsync(endpoints.UserManager + $"UserCategoryPreferences", preferences);
+            }
+
+            if (response.IsSuccessStatusCode)
+            {
+                NavigationManager.NavigateTo("/");
+            }
+        }
+    }
+
+    private async void ResumeLater()
+    {
+        UserManager.Models.UserRegistration userRegistration = new UserManager.Models.UserRegistration();
+
+        userRegistration.Id = Guid.NewGuid();
+        userRegistration.AzureObjectId = (Guid) userid;
+        userRegistration.UserType = user.CurrentStatus;
+        userRegistration.Name = step2Form.FirstName ?? "";
+        userRegistration.Surname = step2Form.LastName ?? "";
+        userRegistration.PhoneCountryId = step3Form.CountryID;
+        userRegistration.PhoneNumber = step3Form.PhoneNumber ?? "";
+        userRegistration.PhoneVerified = step4Form.VerifyCode == step4Form.VerifyCodeCompare;
+        userRegistration.Address = step5Form.Location ?? "";
+        userRegistration.AddressLat = Decimal.Parse(step5Form.LatLng.Lat.ToString());
+        userRegistration.AddressLng = Decimal.Parse(step5Form.LatLng.Lng.ToString());
+        userRegistration.CountryId = locationCountryID == 0 ? 3 : locationCountryID;
+        userRegistration.District = step6Form.District ?? "";
+        userRegistration.Street = step6Form.Street ?? "";
+        userRegistration.Flat = step6Form.FlatFloorBldg ?? "";
+        userRegistration.PostCode = step6Form.PostCode ?? "";
+        userRegistration.Area = step6Form.Area ?? "";
+        userRegistration.Province = step6Form.Province ?? "";
+        userRegistration.Distance = step5Form.Distance;
+        userRegistration.ShowExactLocation = step6Form.Exact;
+        userRegistration.IdentityType = step8Form.IdentityType == 0 ? 1 : step8Form.IdentityType;
+        userRegistration.IdentityImage = step8Form.File ?? "";
+        userRegistration.SelfieImage = step9Form.File ?? "";
+        userRegistration.Status = 0;
+        userRegistration.VettingBusy = false;
+        userRegistration.VettingStart = DateTime.Parse(" 1 Jan 2000");
+        userRegistration.VettingEnd = DateTime.Parse(" 1 Jan 2000");
+        userRegistration.LastStep = step;
+        userRegistration.Active = true;
+
+        HttpClient client = new HttpClient();
+
+        HttpResponseMessage response = await client.PostAsJsonAsync(endpoints.UserManager + $"UserRegistrations", userRegistration);
+        response.EnsureSuccessStatusCode();
+
+        if (response.IsSuccessStatusCode)
+        {
+            NavigationManager.NavigateTo("/");
+        }
+    }
+
+    private async Task SetLatLng()
+    {
+        JsonArray? location = await JsRuntime.InvokeAsync<JsonArray>("GetCoords");
+
+        decimal lat = 0;
+        decimal lng = 0;
+
+        lat = Decimal.Parse(location[1].ToString());
+        lng = Decimal.Parse(location[0].ToString());
+
+        latlngStep5 = new LatLngLiteral(lat, lng);
+        await mapStep5.InteropObject.SetCenter(latlngStep5);
+
+    }
+
+    private async Task OnAfterMapInitStep5()
+    {
+        mapStep5.InteropObject.ClearListeners("click");
+
+        if (step5Form.LatLng.Lng == 0 && step5Form.LatLng.Lat == 0)
+        {
+            await SetLatLng();
+            step5Form.LatLng = latlngStep5;
+
+            step5Form.Location = geocoder.ReverseGeocodeAsync(new Geocoding.Location(latlngStep5.Lat, latlngStep5.Lng)).Result.First().FormattedAddress;
+        }
+        else
+        {
+            latlngStep5 = step5Form.LatLng;
+        }
+
+        mapClickEvent = await mapStep5.InteropObject.AddListener<MouseEvent>("click", MapClicked);
+
+        autocomplete = await Autocomplete.CreateAsync(mapStep5.JsRuntime, locationBox, new AutocompleteOptions
+            {
+                StrictBounds = false
+            });
+
+        await autocomplete.SetFields(new[] { "address_components", "geometry", "name" });
+
+        await autocomplete.AddListener("place_changed", async () =>
+        {
+            var place = await autocomplete.GetPlace();
+
+            if (place?.Geometry == null)
+            {
+                //  this.message = "No results available for " + place?.Name;
+            }
+            else if (place.Geometry.Location != null)
+            {
+                step5Form.Location = place.Name;
+                step5Form.LatLng = place.Geometry.Location;
+                step5Form.Place = place;
+                step6Form.PlaceSet = false;
+
+                latlngStep5 = step5Form.LatLng;
+
+                await DrawMapRadius();
+
+                await mapStep5.InteropObject.SetCenter(place.Geometry.Location);
+                await mapStep5.InteropObject.SetZoom(13);
+
+                if (markerStep5 != null)
+                {
+                    markerStep5.SetMap(null);
+                    mapStep5.InteropObject.RemoveAllImageLayers();
+                }
+
+                markerStep5 = await Marker.CreateAsync(this.mapStep5.JsRuntime, new MarkerOptions
+                    {
+                        Position = place.Geometry.Location,
+                        Map = this.mapStep5.InteropObject,
+                        Title = place.Name,
+                        Draggable = true
+                    }
+                );
+
+                markerStep5.SetMap(mapStep5.InteropObject);
+
+                await markerStep5.AddListener("dragend", async () =>
+                {
+                    latlngStep5 = await markerStep5.GetPosition();
+                }
+                );
+            }
+            else if (place.Geometry.Viewport != null)
+            {
+                await this.mapStep5.InteropObject.FitBounds(place.Geometry.Viewport, 5);
+            }
+
+            await DrawMapRadius();
+
+            this.StateHasChanged();
+        });
+    }
+
+    private async Task OnAfterMapInitStep7()
+    {
+        latlngStep7 = step5Form.LatLng;
+
+        mapStep7.Options.Center = latlngStep7;
+        await mapStep7.InteropObject.SetCenter(latlngStep7);
+
+        if (markerStep7 != null)
+        {
+            markerStep7.SetMap(null);
+            mapStep7.InteropObject.RemoveAllImageLayers();
+
+            markerStep7 = await Marker.CreateAsync(this.mapStep7.JsRuntime, new MarkerOptions
+                {
+                    Position = latlngStep7,
+                    Map = this.mapStep5.InteropObject,
+                    Title = "",
+                    Draggable = true
+                }
+            );
+        }
+        else
+        {
+            latlngStep7 = new LatLngLiteral(step5Form.LatLng.Lat, step5Form.LatLng.Lng);
+
+            markerStep7 = await Marker.CreateAsync(this.mapStep7.JsRuntime, new MarkerOptions
+                {
+                    Position = latlngStep7,
+                    Map = this.mapStep7.InteropObject,
+                    Title = "",
+                    Draggable = false
+                }
+            );
+        }
+
+
+        latlngStep7 = latlngStep7;
+
+        markerStep7.SetMap(mapStep7.InteropObject);
+
+        await markerStep7.AddListener("dragend", async () =>
+        {
+            latlngStep7 = await markerStep7.GetPosition();
+            latlngStep7 = latlngStep7;
+        }
+        );
+
+        StateHasChanged();
+    }
+
+    private void MapClicked(MouseEvent clickMouseEvent)
+    {
+        AddMarkerAtMouseClick(clickMouseEvent.LatLng);
+    }
+
+    private async Task AddMarkerAtMouseClick(LatLngLiteral latlng)
+    {
+        if (markerStep5 != null)
+        {
+            markerStep5.SetMap(null);
+            mapStep5.InteropObject.RemoveAllImageLayers();
+        }
+
+        markerStep5 = await Marker.CreateAsync(this.mapStep5.JsRuntime, new MarkerOptions
+            {
+                Position = latlng,
+                Map = this.mapStep5.InteropObject,
+                Title = "",
+                Draggable = true
+            }
+        );
+
+        step5Form.LatLng = latlng;
+        step6Form.PlaceSet = false;
+
+        this.latlngStep5 = latlng;
+
+        markerStep5.SetMap(mapStep5.InteropObject);
+
+        await markerStep5.AddListener("dragend", async () =>
+        {
+            latlng = await markerStep5.GetPosition();
+            step5Form.LatLng = latlng;
+            step6Form.PlaceSet = false;
+
+            this.latlngStep5 = latlng;
+        }
+        );
+
+        await DrawMapRadius();
+
+        StateHasChanged();
+    }
+
+    private async Task Submit()
+    {
+        loginMessage = null;
+
+        // Check if user is not already registered
+        var request = new HttpRequestMessage(HttpMethod.Get, endpoints.UserManager + $"Users/{loginForm.Username}");
+        HttpClient client = new HttpClient();
+
+        using (var response = await client.SendAsync(request))
+        {
+            if (response.IsSuccessStatusCode)
+            {
+                using var responseStream = await response.Content.ReadAsStreamAsync();
+                bool exists = await JsonSerializer.DeserializeAsync<bool>(responseStream);
+
+                if (exists)
+                {
+                    loginMessage = "This username has already been taken.";
+                    return;
+                }
+                else
+                {
+                    Guid? newUserID = await CreateAzureUser(loginForm.Username, loginForm.Password);
+
+                    if (newUserID == null && loginMessage == null)
+                    {
+                        loginMessage = "Unable to create this user at this time. Please try again later.";
+                        return;
+                    }
+
+                    userid = newUserID;
+                    step = 1;
+
+                    if (!await CreateBasicUser((Guid) newUserID, loginForm.Username))
+                    {
+                        await DeleteAzureUser((Guid) newUserID);
+                    }
+                    else
+                    {
+                        NavigationManager.NavigateTo($"/registeremail/{newUserID}/{loginForm.Username}");
+                    }
+                }
+            }
+            else
+            {
+                NavigationManager.NavigateTo($"/register/{((AuthStateProvider) authStateProvider).GetUser().ID}");
+            }
+        }
+    }
+
+    private async Task<Guid?> CreateAzureUser(string userName, string password)
+    {
+        try
+        {
+            // Initialize the client credential auth provider
+            var scopes = new[] { "https://graph.microsoft.com/.default" };
+            var clientSecretCredential = new ClientSecretCredential(azureSettings.TenantId, azureSettings.ClientId, azureSettings.ClientSecret);
+            var graphClient = new GraphServiceClient(clientSecretCredential, scopes);
+
+            // Create user
+            var result = await graphClient.Users.PostAsync(new Microsoft.Graph.Models.User
+                {
+                    GivenName = null,
+                    Surname = null,
+                    DisplayName = userName,
+                    Identities = new List<ObjectIdentity>
+            {
+            new ObjectIdentity()
+            {
+            SignInType = "emailAddress",
+            Issuer = azureSettings.Domain,
+            IssuerAssignedId = userName
+            }
+            },
+                    PasswordProfile = new PasswordProfile()
+                    {
+                        Password = password,
+                        ForceChangePasswordNextSignIn = false
+                    },
+                    PasswordPolicies = "DisablePasswordExpiration,DisableStrongPassword"
+                });
+
+            Guid userId = Guid.Parse(result.Id);
+            return userId;
+        }
+        catch (Exception ex)
+        {
+            if (ex.Message.Contains("userPrincipalName already exists"))
+            {
+                loginMessage = "This username has already been taken.";
+            }
+        }
+        return null;
+    }
+
+    private async Task DeleteAzureUser(Guid id)
+    {
+        try
+        {
+            // Initialize the client credential auth provider
+            var scopes = new[] { "https://graph.microsoft.com/.default" };
+            var clientSecretCredential = new ClientSecretCredential(azureSettings.TenantId, azureSettings.ClientId, azureSettings.ClientSecret);
+            var graphClient = new GraphServiceClient(clientSecretCredential, scopes);
+
+            // Delete user
+            await graphClient.Users[id.ToString()].DeleteAsync();
+        }
+        catch (Exception ex)
+        {
+        }
+    }
+
+    private async Task<bool> CreateBasicUser(Guid userId, string userName)
+    {
+        bool basicCreated = false;
+        bool stubCreated = false;
+
+        try
+        {
+            var request = new HttpRequestMessage(HttpMethod.Post, endpoints.UserManager + $"Users/AddBasicUser/{userid}/{userName}");
+            HttpClient client = new HttpClient();
+
+            using (var response = await client.SendAsync(request))
+            {
+                if (response.IsSuccessStatusCode)
+                {
+                    basicCreated = true;
+                }
+            }
+
+            request = new HttpRequestMessage(HttpMethod.Post, endpoints.Products + $"UserStubs/{userid}");
+            client = new HttpClient();
+
+            using (var response = await client.SendAsync(request))
+            {
+                if (response.IsSuccessStatusCode)
+                {
+                    stubCreated = true;
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            return false;
+        }
+
+        return basicCreated & stubCreated;
+    }
+
+    public async Task SignInWithGoogleAsync()
+    {
+        // await ((AuthStateProvider) authStateProvider).LoginGoogle(NavigationManager, googleSettings, userTokenProvider);
+
+        //       var stateProvider = DotNetObjectReference.Create<AuthenticationStateProvider>(authStateProvider);
+        //await JSRuntime.InvokeVoidAsync("GoogleInitialize", googleSettings.client_id, authStateProvider);
+        //The following code might not work in some cases
+        //await JSRuntime.InvokeVoidAsync("google.accounts.id.prompt");
+
+        //The following code will execute the prompt function and print the reason of not working to the console if fails.
+        //await JSRuntime.InvokeVoidAsync("GooglePrompt");
+    }
+
+    private void HandleFieldChanged(object? sender, FieldChangedEventArgs e)
+    {
+        if (loginFormContext is not null)
+        {
+            formInvalid = !loginFormContext.Validate();
+            StateHasChanged();
+        }
+    }
+
+    private string GenerateVerificationCode()
+    {
+        string result = "";
+
+        Random rng = new Random();
+
+        for (int i = 0; i < 4; i++)
+        {
+            int number = rng.Next(0, 9);
+            result = result + number.ToString();
+        }
+
+        return result;
+    }
+
+    private void SendVerificationCodeAgain()
+    {
+        verificationCode = GenerateVerificationCode();
+        step4Form.VerifyCode = verificationCode;
+        step4Form.VerifyCodeCompare = verificationCode;
+    }
+
+    private async Task StartLocationAnimation()
+    {
+        await JsRuntime.InvokeVoidAsync("StartLocationAnimation");
+    }
+
+    private async Task FindLocation()
+    {
+        mapOptionsStep5 = new MapOptions()
+            {
+                DisableDefaultUI = true,
+                Zoom = 13,
+                Center = latlngStep5,
+                MapTypeId = MapTypeId.Roadmap
+            };
+
+        await mapStep5.InteropObject.SetCenter(latlngStep5);
+    }
+
+    public async Task RangeValCalc(string value)
+    {
+        rangeValue = Convert.ToDouble(value);
+        rangeText = rangeValue.ToString();
+        await DrawMapRadius();
+        StateHasChanged();
+    }
+
+    public async Task RangeTxtCalc(string value)
+    {
+        double outvalue = 0;
+
+        if (Double.TryParse(value, out outvalue))
+        {
+            rangeValue = outvalue;
+        }
+        else
+        {
+            rangeValue = 50;
+            rangeText = rangeValue.ToString();
+        }
+        await DrawMapRadius();
+        StateHasChanged();
+    }
+
+    private async Task DrawMapRadius()
+    {
+        CircleOptions circleOptions = new CircleOptions
+            {
+                Map = mapStep5.InteropObject,
+                Center = latlngStep5,
+                Radius = rangeValue * 1000,
+                StrokeColor = "#62ff8e",
+                StrokeOpacity = 0.60f,
+                StrokeWeight = 2,
+                FillColor = "#62ff8e",
+                FillOpacity = 0.35f,
+                Visible = true,
+                ZIndex = 1000000,
+                Clickable = false,
+            };
+        circleOptionsByRef.Clear();
+        circleOptionsByRef.Add("circle", circleOptions);
+        await RefreshCircleList();
+    }
+
+    private async Task RefreshCircleList()
+    {
+        circleList = await CircleList.SyncAsync(circleList, mapStep5.JsRuntime, circleOptionsByRef);
+        StateHasChanged();
+    }
+
+    private void IDTypeChanged(int idType)
+    {
+        switch (idType)
+        {
+            case 1:
+                step8Form.IdentityCard = true;
+                step8Form.DrivingLicense = false;
+                step8Form.Passport = false;
+                step8Form.IDSelected = true;
+                break;
+            case 2:
+                step8Form.IdentityCard = false;
+                step8Form.DrivingLicense = true;
+                step8Form.Passport = false;
+                step8Form.IDSelected = true;
+                break;
+            case 3:
+                step8Form.IdentityCard = false;
+                step8Form.DrivingLicense = false;
+                step8Form.Passport = true;
+                step8Form.IDSelected = true;
+                break;
+            default:
+                break;
+        }
+
+        step8Form.IdentityType = idType;
+    }
+
+    private async void ShowTheWebCam()
+    {
+        showWebCam = true;
+        StateHasChanged();
+
+        await JsRuntime.InvokeVoidAsync("startVideo", "videoFeed");
+    }
+
+    private async Task SnapWebCam()
+    {
+        string x = await JsRuntime.InvokeAsync<String>("getFrame", "videoFeed", "currentFrame", DotNetObjectReference.Create(this));
+    }
+
+    private async Task LikeButtonClicked(Guid id)
+    {
+        step10Form.Categories.Add(id);
+    }
+
+    private async Task UnLikeClicked(Guid id)
+    {
+        step10Form.Categories.Remove(id);
+    }
+
+    [JSInvokable]
+    public void ProcessImage(string imageString)
+    {
+        byte[] imageData = Convert.FromBase64String(imageString.Split(',')[1]);
+
+        using (var image = SixLabors.ImageSharp.Image.Load(imageData))
+        {
+            image.Mutate(x => x
+                .Flip(FlipMode.Horizontal) //To match mirrored webcam image
+            );
+            frameUri = image.ToBase64String(JpegFormat.Instance);
+        }
+    }
+
+    public class LoginForm
+    {
+        [Required]
+        [DataType(DataType.EmailAddress)]
+        public string Username
+        {
+            get; set;
+        }
+
+        [Required]
+        [DataType(DataType.Password)]
+        public string Password
+        {
+            get; set;
+        }
+
+
+        [Required]
+        [DataType(DataType.Password)]
+        [CompareProperty("Password", ErrorMessage = "The password and confirmation must match")]
+        public string PasswordVerify
+        {
+            get; set;
+        }
+    }
+
+    private class Step2Form
+    {
+        [Required(AllowEmptyStrings = false, ErrorMessage = "A first name is required")]
+        public string FirstName
+        {
+            get; set;
+        }
+
+        [Required(AllowEmptyStrings = false, ErrorMessage = "A last name is required")]
+        public string LastName
+        {
+            get; set;
+        }
+    }
+
+    private class Step3Form
+    {
+        [Range(1, 1000, ErrorMessage = "Please select a country")]
+        public int CountryID
+        {
+            get; set;
+        } = 1;
+
+        [Required(AllowEmptyStrings = false, ErrorMessage = "A phone number is required")]
+        [RegularExpression(@"^(\+\d{1,3}\s?)?1?\-?\.?\s?\(?\d{2,3}\)?[\s.-]?\d{3}[\s.-]?\d{4}$",
+        ErrorMessage = "This does not seem to be a valid telephone number.")]
+        public string PhoneNumber
+        {
+            get; set;
+        } = "";
+    }
+
+    private class Step4Form
+    {
+        [Required(AllowEmptyStrings = false, ErrorMessage = "Please enter your 4-digit code.")]
+        [RegularExpression(@"^\d{4}$", ErrorMessage = "Please enter your 4-digit code.")]
+        // [MaxLength(length: 4, ErrorMessage = "Please enter your 4-digit code.")]
+        // [MinLength(length: 4, ErrorMessage = "Please enter your 4-digit code.")]
+        [CompareProperty("VerifyCodeCompare", ErrorMessage = "The verification code does not match.")]
+        public string VerifyCode
+        {
+            get; set;
+        }
+
+        public string VerifyCodeCompare
+        {
+            get; set;
+        }
+    }
+
+    private class Step5Form
+    {
+        [Required(AllowEmptyStrings = false, ErrorMessage = "Please enter your location.")]
+        public string Location
+        {
+            get; set;
+        } = "";
+
+        public int Distance
+        {
+            get; set;
+        } = 10;
+
+        public LatLngLiteral LatLng
+        {
+            get; set;
+        } = new LatLngLiteral(0D, 0D);
+
+        public PlaceResult Place
+        {
+            get; set;
+        }
+    }
+
+    private class Step6Form
+    {
+        public bool PlaceSet
+        {
+            get; set;
+        } = false;
+
+        [Required(ErrorMessage = "Please select your country/region.")]
+        public int CountryID
+        {
+            get; set;
+        }
+
+        public string CountryName
+        {
+            get; set;
+        }
+
+        public string CountryCode
+        {
+            get; set;
+        }
+
+        public string? District
+        {
+            get; set;
+        } = null;
+
+        [Required(ErrorMessage = "Please add your street.")]
+        public string Street
+        {
+            get; set;
+        } = "";
+
+        public string StreetNumber
+        {
+            get; set;
+        } = "";
+
+        public string? FlatFloorBldg
+        {
+            get; set;
+        } = null;
+
+        [Required(ErrorMessage = "Please add your post code.")]
+        public string PostCode
+        {
+            get; set;
+        } = "";
+
+        [Required(ErrorMessage = "Please add your area.")]
+        public string Area
+        {
+            get; set;
+        } = "";
+
+
+        [Required(ErrorMessage = "Please add your province.")]
+        public string Province
+        {
+            get; set;
+        } = "";
+
+        public bool Exact
+        {
+            get; set;
+        } = false;
+    }
+
+    private class Step8Form
+    {
+        public bool IdentityCard
+        {
+            get; set;
+        } = true;
+
+        public bool DrivingLicense
+        {
+            get; set;
+        } = false;
+
+        public bool Passport
+        {
+            get; set;
+        } = false;
+
+        [AllowedValues([true], ErrorMessage = "Please select an identification type.")]
+        public bool IDSelected
+        {
+            get; set;
+        } = false;
+
+        public string Filename
+        {
+            get; set;
+        }
+
+        [Required(ErrorMessage = "Please add a file.")]
+        public string File
+        {
+            get; set;
+        }
+
+        public int IdentityType
+        {
+            get; set;
+        }
+    }
+
+    private class Step9Form
+    {
+        public string? Filename
+        {
+            get; set;
+        }
+
+        [Required(ErrorMessage = "Please add a file or use your webcam.")]
+        public string File
+        {
+            get; set;
+        }
+    }
+
+    private class Step10Form
+    {
+        public List<Guid> Categories
+        {
+            get; set;
+        } = new List<Guid>();
+    }
+
+    public class CountryCode
+    {
+        public int CountryID
+        {
+            get; set;
+        }
+
+        public string ShortCode
+        {
+            get; set;
+        }
+
+        public string CountryName
+        {
+            get; set;
+        }
+
+        public string PhoneCode
+        {
+            get; set;
+        }
+    }
+}
+<style>
+    .step {
+        display: grid;
+        justify-content: center;
+    }
+
+    .step-heading {
+        margin-top: 20px;
+        margin-bottom: 20px;
+        display: flex;
+        flex-direction: row;
+        flex-wrap: wrap;
+        justify-content: center;
+        align-items: center;
+    }
+
+    .step-content {
+        display: grid;
+        width: 25em;
+    }
+
+    .step-no {
+        color: var(--step-number);
+        font-weight: var(--step-number-font-weight);
+        font-size: var(--step-number-font-size);
+    }
+
+    .step-colon {
+        color: var(--step-colon);
+        font-weight: var(--step-colon-font-weight);
+        font-size: var(--step-colon-font-size);
+        padding-left: 2px;
+        padding-right: 2px;
+    }
+
+    .step-name {
+        color: var(--step-name);
+        font-weight: var(--step-name-font-weight);
+        font-size: var(--step-name-font-size);
+    }
+
+    .step-message {
+        color: var(--step-message);
+        font-weight: var(--step-message-font-weight);
+        font-size: var(--step-message-font-size);
+        justify-self: center;
+        text-align: center;
+    }
+
+    .login-credentials {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+    }
+
+    .provider-button {
+        width: 15em;
+        padding: 5px;
+        background-color: white;
+        border: 1px solid black;
+        border-radius: 10px;
+    }
+
+    .provider-logo {
+        width: 1.5em;
+        height: 1.5em;
+    }
+
+    .signin-with {
+        margin-bottom: 20px;
+    }
+
+    .or {
+        margin-top: 20px;
+        margin-bottom: 20px;
+    }
+
+    .login-form-text {
+        margin-top: 10px;
+    }
+
+    .login-form {
+        display: grid;
+    }
+
+    .login-email-container {
+        display: flex;
+        flex-direction: row;
+        width: 15em;
+        padding: 5px;
+        background-color: white;
+        border: 1px solid black;
+        border-radius: 10px;
+        margin: 0px 0px;
+    }
+
+    .login-email {
+        background-color: white !important;
+        border: none;
+        width: 100%;
+    }
+
+        .login-email:focus-visible {
+            outline: none;
+        }
+
+    .login-password-container {
+        width: 15em;
+        padding: 5px;
+        background-color: white;
+        border: 1px solid black;
+        border-radius: 10px;
+    }
+
+    .login-password {
+        background-color: white;
+        border: none;
+        width: 100%;
+    }
+
+        .login-password:focus-visible {
+            outline: none;
+        }
+
+    .register-button {
+        background-color: var(--nearent-green);
+        color: var(--header_text);
+        font-style: normal;
+        font-size: var(--header_font_size);
+        border-style: none;
+        font-weight: var(--header_font_weight);
+        align-self: center;
+        width: fit-content;
+        justify-self: center;
+        padding: 10px 20px;
+        border-radius: 10px;
+        margin-top: 20px;
+    }
+
+        .register-button:focus {
+            background-color: var(--nearent-green);
+            color: var(--header_text);
+            border-style: none;
+        }
+
+        .register-button:hover {
+            background-color: var(--nearent-green);
+            color: var(--header_text);
+            border-style: none;
+        }
+
+        .register-button:active {
+            background-color: var(--nearent-green);
+            color: var(--header_text);
+            border-style: none;
+        }
+
+    .step1 {
+        display: grid;
+        grid-template-columns: 1fr;
+        grid-template-rows: 1fr 1fr;
+    }
+
+    .step1-card {
+        display: grid;
+        width: 24em;
+        justify-self: center;
+        margin-top: 15px;
+        border-color: var(--nearent-green);
+        padding: 20px;
+    }
+
+    .step1-card-content {
+        display: grid;
+        justify-items: center;
+    }
+
+    .form-check-input {
+        background-color: transparent;
+        border-color: var(--nearent-green);
+    }
+
+        .form-check-input:checked {
+            background-color: var(--nearent-green);
+            border-color: var(--nearent-green);
+        }
+
+    .step-container {
+        justify-self: center;
+        width: 24em;
+        height: 25em;
+        margin: 5px 10px 10px 10px;
+        display: grid;
+        justify-content: stretch;
+    }
+
+    .step-container-identification {
+        justify-self: center;
+        width: 380px;
+        margin: 5px 10px 10px 10px;
+        display: grid;
+        justify-content: stretch;
+    }
+
+    .step-container-wide {
+        width: 380px;
+        margin: 40px 5px;
+    }
+
+    .form {
+        display: grid;
+        grid-row-gap: 20px;
+        box-sizing: unset;
+        grid-template-rows: min-content auto;
+    }
+
+    .form-wide {
+        grid-template-columns: 1fr 1fr;
+        grid-template-rows: max-content;
+        grid-column-gap: 10px;
+    }
+
+    .form-location {
+        display: grid;
+        box-sizing: unset;
+        grid-template-rows: min-content min-content auto;
+    }
+
+    .form-location-validation {
+        display: grid;
+        grid-row-gap: 0px;
+        box-sizing: unset;
+        grid-template-rows: min-content auto;
+        overflow-y: auto;
+    }
+
+    .form-identity {
+        margin-top: 20px;
+        display: grid;
+        grid-row-gap: 5px;
+        box-sizing: unset;
+        grid-template-rows: min-content min-content min-content min-content min-content auto;
+        justify-content: center;
+    }
+
+    .step-text {
+        height: 3em;
+        border-radius: 10px;
+        border-width: 1px;
+        padding: 8px;
+        width: 100%;
+    }
+
+    .step-text-location {
+        border: none;
+        width: 100%;
+    }
+
+        .step-text-location:focus-visible {
+            outline: none;
+        }
+
+    .step-dropdown {
+        height: 3em;
+        border-radius: 10px;
+        border-width: 1px;
+        padding: 8px;
+        width: 100%;
+    }
+
+    .validation-message {
+        font-size: var(--validation-message-font-size);
+    }
+
+    .additional-text {
+        font-size: var(--additional-form-text);
+    }
+
+    .additional-text-bold {
+        font-weight: var(--additional-form-text-weight);
+    }
+
+    .verification-textbox {
+        width: 4em;
+        justify-self: center;
+    }
+
+    .verification-sms {
+        display: grid;
+        grid-template-columns: auto auto;
+    }
+
+    .verification-sms-options {
+        display: grid;
+        grid-template-columns: auto auto;
+        justify-self: normal;
+    }
+
+    .map {
+        height: unset;
+        position: relative;
+        overflow: hidden;
+    }
+
+    .location-container {
+        margin-bottom: 10px;
+        display: grid;
+        grid-template-columns: 100% 0%;
+        grid-column-gap: 10px;
+    }
+
+    .location-marker {
+        width: 2em;
+        height: 2em;
+        align-self: center;
+        text-align: center;
+        -webkit-writing-mode: vertical-rl;
+    }
+
+    .location-text {
+        height: 3em;
+        border: 1px solid black;
+        border-radius: 30px;
+        padding: 3px;
+        display: grid;
+        grid-template-columns: min-content auto;
+        align-items: center;
+    }
+
+    .location-button-holder {
+        position: relative;
+        left: 1000px;
+        height: 3em;
+        border: 1px solid var(--nearent-darker-green);
+        color: var(--nearent-darker-green);
+        border-radius: 30px;
+        padding: 3px;
+        display: grid;
+        grid-template-columns: min-content auto;
+        align-items: center;
+        width: 120px;
+        justify-self: center;
+    }
+
+    @@keyframes slide-in {
+        from {
+            left: 1000px
+        }
+
+        to {
+            left: 0px
+        }
+    }
+
+    @@keyframes reduce-grid {
+        from {
+            grid-template-columns: 100% 0%;
+        }
+
+        to {
+            grid-template-columns: 65% 35%;
+        }
+    }
+
+    .animation-button {
+        animation-name: slide-in;
+        animation-duration: 1s;
+        animation-timing-function: ease-out;
+        animation-fill-mode: forwards;
+    }
+
+    .animation-grid {
+        animation-name: reduce-grid;
+        animation-duration: 1s;
+        animation-timing-function: ease-out;
+        animation-fill-mode: forwards;
+    }
+
+    .location-details-container {
+        display: grid;
+        grid-template-rows: min-content min-content;
+        grid-row-gap: 5px;
+    }
+
+    .location-details-gadget {
+        display: grid;
+        grid-template-columns: min-content auto min-content min-content;
+        height: fit-content;
+        align-items: center;
+        margin-bottom: 5px;
+    }
+
+    .location-distance-display-header {
+        font-size: var(--mini-form-text);
+        margin-left: 5px;
+    }
+
+    .location-distance-display {
+        display: grid;
+        grid-template-columns: min-content 30px min-content;
+        padding: 3px;
+        border: 1px solid #d9e0e7;
+        border-radius: 5px;
+        margin-left: 5px;
+    }
+
+    .location-distance-text {
+        border: none;
+        min-width: 35px;
+    }
+
+    .location-distance-km {
+        margin-left: 2px;
+    }
+
+    .step-title {
+        margin-top: 10px;
+        margin-bottom: 2px;
+        font-size: var(--step-field-title-font-size);
+    }
+
+    .exact-location {
+        display: grid;
+        grid-template-columns: auto auto;
+        margin-top: 5px;
+        align-items: center;
+    }
+
+    .exact-location-switch {
+        justify-self: end;
+    }
+
+
+    /* The switch-the box around the slider */
+    .switch {
+        position: relative;
+        display: inline-block;
+        width: 70px;
+        height: 34px;
+    }
+        /* Hide default HTML checkbox */
+        .switch input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+    /* The slider */
+    .slider {
+        position: absolute;
+        cursor: pointer;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background-color: #ccc;
+        -webkit-transition: .4s;
+        transition: .4s;
+    }
+
+        .slider:before {
+            position: absolute;
+            content: "";
+            height: 26px;
+            width: 26px;
+            left: 4px;
+            bottom: 4px;
+            background-color: white;
+            -webkit-transition: .4s;
+            transition: .4s;
+        }
+
+    input:checked + .slider {
+        background-color: var(--nearent-green);
+    }
+
+    input:focus + .slider {
+        box-shadow: 0 0 1px var(--nearent-green);
+    }
+
+    input:checked + .slider:before {
+        -webkit-transform: translateX(36px);
+        -ms-transform: translateX(36px);
+        transform: translateX(36px);
+    }
+    /* Rounded sliders */
+    .slider.round {
+        border-radius: 34px;
+    }
+
+        .slider.round:before {
+            border-radius: 50%;
+        }
+
+    .drop-zone {
+        padding: 5px;
+        width: 100%;
+        min-height: 100px;
+        border: 1px dashed var(--nearent-green);
+        border-radius: 5px;
+    }
+
+        .drop-zone.hover {
+            border-style: solid;
+        }
+
+    .upload-instructions {
+        display: grid;
+        grid-template-columns: auto auto;
+        width: 24em;
+    }
+
+    .upload-instructions-left {
+        align-self: start;
+        text-align: start;
+    }
+
+    .upload-instructions-right {
+        display: flex;
+        justify-content: end;
+    }
+
+    .dropzone-grid {
+        display: grid;
+        grid-template-columns: auto auto;
+        width: 100%;
+    }
+
+    .dropzone-button {
+        display: flex;
+        justify-content: center;
+        align-self: center;
+    }
+
+    .cam-button {
+        font-size: var(--web-cam-button-text);
+        width: 8em;
+        height: 3em;
+        border: 1px solid black;
+        border-radius: 25px;
+        margin-left: 5px;
+        background-color: transparent;
+    }
+
+    .map-container {
+        width: 24em;
+        height: 17em;
+    }
+
+    .like-buttons {
+        display: flow;
+        width: 24em;
+        height: max-content;
+        text-align: center;
+        border-bottom: 1px solid black;
+    }
+
+    .like-button {
+        border: 1px solid black;
+        border-radius: 25px;
+        height: 2em;
+        min-width: 90px;
+        margin: 4px;
+        background: transparent;
+    }
+
+    .step10-content {
+        overflow-y: auto;
+        overflow-x: hidden;
+    }
+
+    .like-items {
+    }
+
+    .like-item {
+        display: grid;
+        width: 23em;
+        grid-template-columns: 8fr 2fr;
+        border-bottom: 1px solid lightgray;
+        height: 2em;
+    }
+
+    .like-item-left {
+        margin-left: 1em;
+        align-self: center;
+    }
+
+    .like-item-right {
+        justify-self: end;
+        align-self: center;
+    }
+
+</style>

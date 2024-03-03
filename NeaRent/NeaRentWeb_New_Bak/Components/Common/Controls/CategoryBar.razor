@@ -1,0 +1,112 @@
+﻿@inject IJSRuntime JS
+
+<div class="bar-container">
+    @* <i class="bi bi-chevron-left arrow" @onclick="ScrollLeft"></i> *@
+    @*     <div class="scrollmenu scrollable-content scrollable-content--hint is-faded">*@
+    <div class="scrollmenu">
+        @foreach (Category category in categories)
+        {
+            <a href="#@category.Name">@category.Name</a>
+        }
+    </div>
+    @* <i class="bi bi-chevron-right arrow" @onclick="ScrollRight"></i> *@
+</div>
+@code {
+    [Parameter]
+    public List<Category> Categories { get; set; } = new List<Category>();
+
+    List<Category> categories { get; set; } = new List<Category>();
+
+    int scrollPos { get; set; } = 0;
+
+    protected override async Task OnInitializedAsync()
+    {
+        categories = Categories.Where(x => x.HasChildren == false && x.Active).OrderBy(o => o.Name).ToList();
+    }
+
+    private async Task ScrollLeft()
+    {
+        scrollPos = scrollPos - 10;
+
+        await JS.InvokeVoidAsync("scrollElement", "scrollDiv", scrollPos);
+    }
+
+    private async Task ScrollRight()
+    {
+        float width = JS.InvokeAsync<float>("getElementWidth", "scrollDiv").Result;
+
+        if (scrollPos > width)
+        {
+            scrollPos = 10;
+        }
+        else
+        {
+            scrollPos = scrollPos + 10;
+        }
+
+        await JS.InvokeVoidAsync("scrollElement", "scrollDiv", scrollPos);
+    }
+
+}
+
+<style>
+    .bar-container {
+        display: flex;
+        flex-flow: row;
+        align-items: center;
+        width: 100%;
+    }
+
+    .scrollmenu {
+        display: flex;
+        background-color: var(--category-bar-background);
+        overflow: hidden;
+        white-space: nowrap;
+        overflow-x: scroll;
+    }
+
+       /*  .scrollmenu:hover,
+        .scrollmenu:active,
+        .scrollmenu:focus {
+            overflow-x: scroll;
+        } */
+
+        .scrollmenu a {
+            display: inline-block;
+            color: var(--category-bar-color);
+            text-align: center;
+            padding: 14px;
+            text-decoration: none;
+            font-weight: var(--category-bar-font-weight);
+            font-size: var(--category-bar-font-size);
+            padding: 10px 15px;
+            border: transparent 1px solid;
+        }
+
+            .scrollmenu a:hover {
+                border: transparent 1px solid;
+                background-color: var(--category-bar-highlight);
+                padding: 10px 15px;
+                border-radius: 5px;
+            }
+
+        .scrollmenu::-webkit-scrollbar {
+            height: 6px;
+        }
+
+        .scrollmenu::-webkit-scrollbar-corner {
+            width: 0px;
+        }
+
+        .scrollmenu::-webkit-scrollbar-track {
+            background-color: hsl(250 15% 93%);
+        }
+
+        .scrollmenu::-webkit-scrollbar-thumb {
+            background-color: hsl(250 15% 60%);
+        }
+
+            .scrollmenu::-webkit-scrollbar-thumb:hover {
+                background-color: hsl(250 15% 27%);
+            }
+</style>

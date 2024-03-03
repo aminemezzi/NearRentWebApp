@@ -1,0 +1,44 @@
+﻿@page "/messageandreturn/{message}"
+
+@inject NavigationManager Navigation
+
+<div class="message-page">
+    <div class="message">@message</div>
+    <button class="message-button" @onclick=ReturnToMain>Continue back to NeaRent...</button>
+</div>
+
+
+@code {
+    [Parameter]
+    public string message { get; set; }
+
+    private void ReturnToMain()
+    {
+        Navigation.NavigateTo("/");
+    }
+}
+
+<style>
+    .message-page{
+        display: grid;
+        margin: 40px 20px;
+        grid-template-rows: auto 1fr;
+    }
+
+    .message{
+        background-color: var(--message-background);
+        color: var(--nearent-blue);
+    }
+
+    .message-button{
+        background-color: var(--login-button-background);
+        color: var(--login-button-color);
+        border-radius: 10px;
+        height: 3em;
+        border: 0px;
+        width: fit-content;
+        padding: 10px;
+        justify-self: center;
+        margin-top: 20px;
+    }
+</style>

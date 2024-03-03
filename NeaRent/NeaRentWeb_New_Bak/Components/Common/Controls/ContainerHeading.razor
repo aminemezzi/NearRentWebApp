@@ -1,0 +1,11 @@
+﻿<div class="page-container-heading">
+    <div class="page-container-heading-text">@Text</div>
+    <div class="page-container-heading-see-all">See All<i class="bi bi-arrow-right"></i></div>
+</div>
+@code {
+    [Parameter]
+    public string SeeAllRoute { get; set; } = "/";
+
+    [Parameter]
+    public string Text { get; set; } = "/";
+}

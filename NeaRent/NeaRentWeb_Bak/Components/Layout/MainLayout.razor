@@ -1,0 +1,402 @@
+﻿@inherits LayoutComponentBase
+
+@implements IDisposable
+
+@inject IHttpClientFactory ClientFactory
+@inject NavigationManager Navigation
+@inject AuthenticationStateProvider AuthenticationStateProvider
+@inject HttpClient httpClient
+
+@using Microsoft.AspNetCore.Components.Authorization
+@using NeaRentWeb.Components.Account
+@using NeaRentWeb.Components.Common
+@using System.Text.Json
+@using System.Text.Json.Serialization
+@using Products.Models
+@using UserManager.Models
+
+<div class="container">
+    <div class="page">
+        <div class="main">
+            <header class="p-3 border-bottom">
+                <div class="container">
+                    <div class="main-header">
+                        <img class="main-header-logo" src="images/nearent_logo.png" />
+                        <div class="main-header-menu">
+                            <AuthorizeView>
+                                <Authorized>
+                                    <ul class="nav col-12 col-lg-auto me-lg-auto mb-2 justify-content-center mb-md-0">
+                                        <li class="language-area">
+                                            <i class="bi bi-globe2"></i>
+                                            <select class="language-dropdown" @bind=@languageId>
+                                                <option class="language-text" value="en" selected>EN</option>
+                                                <option class="language-text" value="fr">FR</option>
+                                            </select>
+                                        </li>
+
+                                        <li><a href="http://localhost:8080/realms/NeaRent/protocol/openid-connect/logout?post_logout_redirect_uri=@logoutRedirect&id_token_hint=@idToken" class="nav-link px-2 link-secondary main-header-text">Sign out</a></li>
+
+                                        <li class="button-listitem">
+                                            <Button Class="post-button">Post add</Button>
+                                        </li>
+
+                                        <li class="button-listitem">
+                                            <Button Class="rent-button">Rent</Button>
+                                        </li>
+                                    </ul>
+                                </Authorized>
+                                <NotAuthorized>
+                                    <ul class="nav col-12 col-lg-auto me-lg-auto mb-2 justify-content-center mb-md-0 ">
+                                        <li class="language-area">
+                                            <i class="bi bi-globe2"></i>
+                                            <select class="language-dropdown" @bind=@languageId>
+                                                <option class="language-text" value="en" selected>EN</option>
+                                                <option class="language-text" value="fr">FR</option>
+                                            </select>
+                                        </li>
+                                        <li><a href="http://localhost:8080/realms/NeaRent/protocol/openid-connect/registrations?client_id=nearent&response_type=code&scope=openid email&redirect_uri=https://localhost:44394" class="nav-link px-2 link-secondary main-header-text">Register</a></li>
+                                        <li><a href="/login" class="nav-link px-2 link-secondary main-header-text">Log in</a></li>
+                                        <li class="button-listitem">
+                                            <Button Class="rent-button">Rent</Button>
+                                        </li>
+                                    </ul>
+                                </NotAuthorized>
+                            </AuthorizeView>
+                        </div>
+                    </div>
+                </div>
+            </header>
+            <div class="head-title">
+                Rent Tomorrows's Electronics Today
+            </div>
+            <div class="searchbox-anchor">
+                <div class="searchbox-container">
+                    <div class="searchbox-placement">
+                        <SearchBox OnSearch=@Search />
+                    </div>
+                </div>
+            </div>
+            <article class="content px-4">
+
+                @Body
+
+            </article>
+            <footer>
+                <div class="foot-title">
+                    <div class="foot-title-title">
+                        Are you looking for
+                    </div>
+                    <div class="foot-title-subtitle">
+                        See more relevant listings, find what you are looking for quicker, and more!
+                    </div>
+                    <div class="foot-title-button">
+                        <Button Class="rent-button">Rent</Button>
+                    </div>
+                </div>
+            </footer>
+        </div>
+    </div>
+</div>
+
+@code {
+    string idToken { get; set; } = "";
+    string logoutRedirect { get; set; } = "";
+    string loginRedirect { get; set; } = "";
+    string registerRedirect { get; set; } = "";
+
+    string languageId { get; set; } = "en";
+
+    protected override async Task OnInitializedAsync()
+    {
+       
+
+
+    }
+
+    public void Dispose()
+    {
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            AuthenticationState authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+            if (authState != null)
+            {
+                var claim = authState.User.Claims.Where(x => x.Type == "jti").FirstOrDefault();
+
+                if (claim != null)
+                {
+                    idToken = Tokens.IdToken;
+                    logoutRedirect = Uri.EscapeDataString(Navigation.BaseUri + "/logout");
+                }
+                else
+                {
+                    loginRedirect = Uri.EscapeDataString(Navigation.BaseUri);
+                    registerRedirect = Uri.EscapeDataString(Navigation.BaseUri);
+                }
+            }
+
+            await Populate();
+        }
+    }
+
+    private async Task Populate()
+    {
+        await PopulateCatagories();
+        await PopulateProducts();
+        await PopulateCountriesStatesCities();
+    }
+
+    private async Task PopulateCatagories()
+    {
+        var categoryList = httpClient.GetFromJsonAsync<List<Category>>(Endpoints.Products + "Categories").Result;
+
+        if (categoryList != null && categoryList.Count > 0)
+        {
+            Categories.AllCategories = categoryList;
+        }
+
+        categoryList = httpClient.GetFromJsonAsync<List<Category>>(Endpoints.Products + "Categories/FeaturedCategories").Result;
+
+        if (categoryList != null && categoryList.Count > 0)
+        {
+            Categories.AllFeaturedCategories = categoryList;
+        }
+    }
+
+    private async Task PopulateProducts()
+    {
+        var productList = httpClient.GetFromJsonAsync<List<Product>>(Endpoints.Products + "Products").Result;
+
+        if (productList != null && productList.Count > 0)
+        {
+            ProductContainer.AllProducts = productList;
+        }
+    }
+
+    private async Task PopulateCountriesStatesCities()
+    {
+        var countryList = httpClient.GetFromJsonAsync<List<AddressCountry>>(Endpoints.UserManager + "AddressCountries/AddressCountryStateCity").Result;
+
+        if (countryList != null && countryList.Count > 0)
+        {
+            Addresses.AllCountriesStatesCities = countryList;
+        }
+    }
+
+    private void Search(Dictionary<string, string>? parameters)
+    {
+        SearchParameters.ProductSearch = parameters;
+    }
+}
+
+<style>
+    .main-header {
+        display: grid;
+        grid-auto-flow: column;
+        width: 100%;
+    }
+
+    .main-header-logo {
+        display: flex;
+        justify-self: self-start;
+        align-self: center;
+    }
+
+    .main-header-menu {
+        display: flex;
+        flex-wrap: wrap;
+        justify-self: right;
+    }
+
+    .main-header-text {
+        color: var(--header_text) !important;
+        background-color: var(--header_background);
+        font-style: normal;
+        font-size: var(--header_font_size);
+        font-weight: var(--header_font_weight);
+    }
+
+    .language-area {
+        display: flex;
+        flex-direction: row;
+        flex-wrap: wrap;
+        align-content: center;
+    }
+
+    .language-dropdown {
+        font-size: var(--header_font_size);
+        font-weight: var(--header_font_weight);
+        display: flex;
+        flex-direction: row;
+        border-style: none;
+    }
+
+    .language-text {
+        padding: 0px 10px;
+    }
+
+    .rent-button {
+        background-color: var(--nearent-green);
+        color: var(--header_text);
+        border-style: none;
+        font-style: normal;
+        font-size: var(--header_font_size);
+        border-style: none;
+        font-weight: var(--header_font_weight);
+        align-self: center;
+    }
+
+        .rent-button:focus {
+            background-color: var(--nearent-green);
+            color: var(--header_text);
+            border-style: none;
+        }
+
+        .rent-button:hover {
+            background-color: var(--nearent-green);
+            color: var(--header_text);
+            border-style: none;
+        }
+
+        .rent-button:active {
+            background-color: var(--nearent-green);
+            color: var(--header_text);
+            border-style: none;
+        }
+
+    .post-button {
+        background-color: var(--nearent-green);
+        color: var(--header_text);
+        border-style: none;
+        margin-right: 5px;
+        font-style: normal;
+        font-size: var(--header_font_size);
+        border-style: none;
+        font-weight: var(--header_font_weight);
+        align-self: center;
+    }
+
+        .post-button:focus {
+            background-color: var(--nearent-green);
+            color: var(--header_text);
+            border-style: none;
+            margin-right: 5px;
+        }
+
+        .post-button:hover {
+            background-color: var(--nearent-green);
+            color: var(--header_text);
+            border-style: none;
+            margin-right: 5px;
+        }
+
+        .post-button:active {
+            background-color: var(--nearent-green);
+            color: var(--header_text);
+            border-style: none;
+            margin-right: 5px;
+        }
+
+    .dropdown-toggle::after {
+        align-self: center;
+    }
+
+    .dropdown-toggle {
+        display: flex;
+        flex-wrap: wrap;
+        align-content: center;
+    }
+
+    .head-title {
+        display: flex;
+        flex-wrap: wrap;
+        align-content: center;
+        justify-content: center;
+        background-color: var(--header-title-background);
+        color: var(--header-title-text);
+        height: 3em;
+        border-bottom-left-radius: 30px;
+        border-bottom-right-radius: 30px;
+        margin: 0px 10px;
+        font-size: var(--header-title-font-size);
+        font-weight: var(--header-title-font-weight);
+    }
+
+    .foot-title {
+        display: flex;
+        flex-wrap: wrap;
+        align-content: center;
+        justify-content: center;
+        background-color: var(--footer-title-background);
+        color: var(--footer-title-text);
+        height: 8em;
+        border-radius: 5px;
+        margin: 0px 10px;
+        font-size: var(--footer-title-font-size);
+        font-weight: var(--footer-title-font-weight);
+        margin-top: 1em;
+    }
+
+    .foot-title-title {
+        display: flex;
+        flex-wrap: wrap;
+        align-content: center;
+        justify-content: center;
+        margin-bottom: 15px;
+        width: 100%;
+    }
+
+    .foot-title-subtitle {
+        display: flex;
+        font-size: var(--footer-subtitle-font-size);
+        font-weight: var(--footer-subtitle-font-weight);
+        width: 100%;
+        justify-content: center;
+        margin-bottom: 15px;
+    }
+
+    .foot-title-button {
+        display: flex;
+        width: 100%;
+        justify-content: center;
+    }
+
+    .button-listitem {
+        display: flex;
+        flex-wrap: wrap;
+        align-content: center;
+    }
+
+    .searchbox-anchor {
+        display: block;
+        position: relative;
+        top: -25px;
+        height: 50px;
+    }
+
+    .searchbox-container {
+        display: flex;
+        flex-wrap: wrap;
+        align-content: center;
+        justify-content: center;
+        width: 100%;
+        height: 100%;
+    }
+
+    .searchbox-placement {
+        display: flex;
+        flex-wrap: wrap;
+        width: 75%;
+        height: 100%;
+        align-content: center;
+        justify-content: center;
+        border-style: solid;
+        border-width: 1px;
+        border-radius: 15px;
+        color: var(--searchbox-text);
+        background-color: var(--searchbox-background);
+    }
+</style>

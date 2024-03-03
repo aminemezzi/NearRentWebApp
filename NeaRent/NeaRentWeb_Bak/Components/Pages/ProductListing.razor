@@ -1,0 +1,223 @@
+﻿@page "/productlisting"
+
+@namespace NeaRentWeb.Components.Common
+@implements IDisposable
+
+@inject HttpClient httpClient
+@inject NavigationManager Navigation
+
+
+@using Products.Models
+
+<div>
+    <span class="breadcrumb">
+        <div @onclick="@Home">
+            <i class="bi bi-house" style="align-self: start; margin-right:10px">  ></i>
+        </div>
+        <Breadcrumb style="--bs-breadcrumb-divider: '>';" Items="breadCrumbs" />
+    </span>
+    <div class="section-title">Featured Deals</div>
+    <div class="section-featured-deals">
+        <ProductList ListOfProduct="@productList" />
+    </div>
+    <br />
+    <br />
+    <div class="section-title">Featured Categories</div>
+    <div class="section-featured-categories">
+        <CategoryList ListOfCategory="@categoryList" />
+    </div>
+</div>
+@code {
+    private List<BreadcrumbItem> breadCrumbs
+    {
+        get; set;
+    }
+
+    private List<Product> productList { get; set; } = new List<Product>();
+    private List<Category> categoryList { get; set; } = new List<Category>();
+
+    protected override async Task OnInitializedAsync()
+    {
+        SearchParameters.ProductSearchChanged += ProductSearchChanged;
+
+        breadCrumbs = new List<BreadcrumbItem>
+        {
+            new BreadcrumbItem{ Text = "Computers, Tablets and Network Hardware", Href ="/" },
+            new BreadcrumbItem{ Text = "Laptops", IsCurrentPage = true }
+        };
+
+        productList = ProductContainer.AllProducts;
+        categoryList = Categories.AllCategories;
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+    }
+
+    public void Dispose()
+    {
+        SearchParameters.ProductSearchChanged -= ProductSearchChanged;
+    }
+
+    private void Home()
+    {
+        Navigation.NavigateTo("/");
+    }
+
+    private async Task Search()
+    {
+        if (SearchParameters.ProductSearch == null || SearchParameters.ProductSearch.Count == 0)
+        {
+            productList = ProductContainer.AllProducts;
+        }
+        else
+        {
+            List<Product> tempList = new List<Product>();
+
+            string? search = null;
+            string? category = null;
+            string? location = null;
+
+            foreach (KeyValuePair<string, string> item in SearchParameters.ProductSearch)
+            {
+                switch (item.Key)
+                {
+                    case "searchText":
+                        search = item.Value;
+                        break;
+                    case "category":
+                        category = item.Value;
+                        break;
+                    case "location":
+                        location = item.Value;
+                        break;
+                    default:
+                        break;
+                }
+            }
+
+            Guid categoryID = Guid.Empty;
+            Guid locationID = Guid.Empty;
+
+            Guid.TryParse(category, out categoryID);
+            Guid.TryParse(location, out locationID);
+
+            tempList = ProductContainer.AllProducts;
+
+            // Reduce the list to products with a name or description like search
+            if (search != null)
+            {
+                tempList = tempList.Where(x => x.Title.Contains(search, StringComparison.CurrentCultureIgnoreCase) || x.Description.Contains(search)).ToList();
+            }
+
+            // Reduce the list to products with a specific category
+            if (category != null)
+            {
+                List<Guid> productIDs = httpClient.GetFromJsonAsync<List<Guid>>(Endpoints.Products + "Products/GetProductIDsForCategory/" + categoryID.ToString()).Result;
+
+                tempList = tempList.Where(x => productIDs.Contains(x.Id) && x.Active).ToList();
+            }
+
+            // Reduce the list to products with a specific location
+            if (location != null)
+            {
+                List<Guid> productIDs = httpClient.GetFromJsonAsync<List<Guid>>(Endpoints.Products + "Products/GetProductIDsForLocation/" + locationID.ToString()).Result;
+
+                tempList = tempList.Where(x => productIDs.Contains(x.Id) && x.Active).ToList();
+            }
+
+            productList = tempList;
+        }
+    }
+
+    private void ProductSearchChanged(object sender, EventArgs e)
+    {
+        Search();
+        StateHasChanged();
+    }
+}
+
+<style>
+    .section-title {
+    }
+
+    .section-featured-deals {
+        display: grid;
+        grid-template-columns: 1fr 1fr 1fr 1fr 1fr;
+        gap: 10px;
+        overflow-x: auto;
+        overflow-y: auto;
+        white-space: nowrap;
+        scroll-behavior: smooth;
+        height: auto;
+        max-height: 50em;
+    }
+
+
+    .section-featured-categories {
+        display: flex;
+        flex-direction: row;
+        gap: 10px;
+        overflow-x: auto;
+        overflow-y: hidden;
+        white-space: nowrap;
+        scroll-behavior: smooth;
+        height: 15.1em;
+    }
+
+    .breadcrumb {
+    }
+
+    .card-container {
+        width: 15em;
+        height: 12em;
+    }
+
+    .card-container-deal {
+        width: 15em;
+        height: 14em;
+        align-self: center;
+        justify-self: center;
+    }
+
+    .card {
+        height: 14em;
+    }
+
+    .card-body {
+        width: 15em;
+        padding: 5px;
+        display: grid;
+    }
+
+    .card-title {
+        display: flex;
+        flex-wrap: wrap;
+        color: var(--card-text);
+        text-align: center;
+        font-size: var(--card-text-font-size);
+        align-self: end;
+        justify-self: center;
+    }
+
+    .card-deal-title {
+        display: flex;
+        flex-wrap: wrap;
+        color: var(--card-text);
+        text-align: center;
+        font-size: var(--card-text-font-size);
+        align-self: end;
+        justify-self: center;
+    }
+
+    .card-image {
+        width: auto;
+        display: flex;
+        flex-wrap: wrap;
+        height: 100%;
+        max-height: 150px;
+        max-width: 100%;
+        align-content: center;
+        justify-self: center;
+    }
+</style>

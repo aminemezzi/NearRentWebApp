@@ -1,0 +1,158 @@
+﻿@inject VariableStorage variableStorage
+
+<div class="card featured-card">
+    <div class="featured-card-container">
+        <img class="featured-card-image" src="categoryimages/@Product.ImageName" />
+        <div class="featured-card-title">@Product.Title</div>
+        <div class="featured-card-rating">
+            <i class="bi bi-star-fill rating-star"></i>
+            <div>@(((float) rating).ToString("F1"))</div>
+
+            <div style="padding-left: 10px">(@ratingCount)</div>
+        </div>
+        <div class="featured-card-location"><i class="bi bi-geo-alt featured-card-search-location-icon"></i>London, UK</div>
+        <div class="featured-card-rate">@(((decimal) Product.ReservationValue).ToString("C", variableStorage.Culture))/day</div>
+    </div>
+</div>
+
+@code {
+    [Parameter]
+    public Product Product
+    {
+        get; set;
+    }
+
+    float? rating { get; set; } = null;
+    int? ratingCount { get; set; } = null;
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (Product.ProductRatings != null && Product.ProductRatings.Count > 0)
+        {
+            ratingCount = Product.ProductRatings.Count();
+            rating = (float) Product.ProductRatings.Sum(x => x.Rating) / ratingCount;
+        }
+    }
+}
+
+<style>
+    .featured-card {
+        width: 27em;
+        height: 12em;
+        margin-right: 5px;
+    }
+
+    /* Medium devices (landscape tablets, 992px and up) */
+    @@media (min-width: 992px) {
+        .featured-card {
+            width: 18em;
+            height: 18em;
+        }
+    }
+
+    .featured-card-container {
+        display: grid;
+        grid-gap: 5px;
+        height: -webkit-fill-available;
+        grid-template-columns: 1fr 1fr;
+        grid-template-rows: 2fr 1fr 1fr 1fr;
+        grid-template-areas:
+            "image title"
+            "image rating"
+            "image location"
+            "image rate";
+    }
+
+    /* Large devices (laptops/desktops, 992px and up) */
+    @@media (min-width: 992px) {
+        .featured-card-container {
+            grid-template-columns: 5fr 2fr;
+            grid-template-rows: 3fr 1fr 1fr;
+            grid-template-areas:
+                "image image"
+                "title rating"
+                "location rate";
+        }
+    }
+
+    .featured-card-image {
+        grid-area: image;
+        display: flex;
+        height: 100%;
+        object-fit: cover;
+        border-top-left-radius: 5px;
+        border-top-right-radius: 0px;
+        border-bottom-left-radius: 5px;
+    }
+
+    /* Large devices (laptops/desktops, 992px and up) */
+    @@media (min-width: 992px) {
+        .featured-card-image {
+            object-fit: contain;
+            width: -webkit-fill-available;
+            height: none;
+            max-height: 200px;
+            max-width: 320px;
+            border-top-left-radius: 5px;
+            border-top-right-radius: 5px;
+            border-bottom-left-radius: 0px;
+        }
+    }
+
+    .featured-card-title {
+        grid-area: title;
+        display: flex;
+        padding-left: 5px;
+    }
+
+    .featured-card-rating {
+        grid-area: rating;
+        display: flex;
+        padding-right: 5px;
+        justify-content: end;
+    }
+
+    .featured-card-location {
+        grid-area: location;
+        display: flex;
+        padding-left: 0px;
+        padding-right: 5px;
+        justify-content: end;
+    }
+
+    /* Large devices (laptops/desktops, 992px and up) */
+    @@media (min-width: 992px) {
+        .featured-card-location {
+            padding-right: 5px;
+            padding-left: 0px;
+            justify-content: start;
+        }
+    }
+
+    .featured-card-rate {
+        grid-area: rate;
+        display: flex;
+        padding-right: 5px;
+        justify-content: end;
+    }
+
+    .rating-star {
+        color: var(--rating-star-color);
+    }
+
+    .featured-card-search-location-icon {
+        justify-content: end;
+        margin-left: 0px;
+        margin-right: 5px;
+    }
+
+    /* Large devices (laptops/desktops, 992px and up) */
+    @@media (min-width: 992px) {
+        .featured-card-search-location-icon {
+            align-self: start;
+            justify-content: start;
+            margin-left: 5px;
+            margin-right: 0px;
+        }
+    }
+</style>

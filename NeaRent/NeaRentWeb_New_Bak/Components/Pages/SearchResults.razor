@@ -1,0 +1,133 @@
+﻿@page "/searchresult"
+
+@implements IDisposable
+
+@inject ProductContainer productContainer
+@inject SearchParameters searchParameters
+@inject HttpClient httpClient
+@inject Endpoints endpoints
+
+@if (ProductList.Count > 0)
+{
+    <div class="page-container">
+        <SearchHeading />
+        <FeaturedDeals Products=@ProductList />
+    </div>
+}
+<div class="page-container">
+    <SearchHeading />
+    <div>No Search Results</div>
+</div>
+
+@code {
+    List<Product> ProductList { get; set; } = new List<Product>();
+
+    protected override async Task OnInitializedAsync()
+    {
+        searchParameters.SearchParametersChanged += SearchParametersChanged;
+
+        await DoSearch();
+    }
+
+    public void Dispose()
+    {
+        searchParameters.SearchParametersChanged -= SearchParametersChanged;
+    }
+
+    private void SearchParametersChanged(object sender, EventArgs e)
+    {
+        DoSearch();
+    }
+
+    private async Task DoSearch()
+    {
+        if (searchParameters.SearchParameterList.Count > 0)
+        {
+            productContainer.SearchedProducts = await Search(searchParameters.SearchParameterList);
+            ProductList = productContainer.SearchedProducts;
+        }
+        else
+        {
+            ProductList = productContainer.AllProducts;
+        }
+        StateHasChanged();
+    }
+
+    private async Task<List<Product>> Search(Dictionary<string, string> parameters)
+    {
+    List<Product> results = new List<Product>();
+
+    if (parameters == null || parameters.Count == 0)
+    {
+        return productContainer.AllProducts;
+    }
+    else
+    {
+        List<Product> tempList = new List<Product>();
+
+        string? search = null;
+        string? category = null;
+        string? location = null;
+        DateOnly? date = null;
+
+        foreach (KeyValuePair<string, string> item in parameters)
+        {
+            switch (item.Key)
+            {
+                case "searchText":
+                    search = item.Value;
+                    break;
+                case "category":
+                    category = item.Value;
+                    break;
+                case "location":
+                    location = item.Value;
+                    break;
+                case "date":
+                    date = DateOnly.Parse(item.Value);
+                    break;
+                default:
+                    break;
+            }
+        }
+
+        Guid categoryID = Guid.Empty;
+        Guid locationID = Guid.Empty;
+
+        Guid.TryParse(category, out categoryID);
+        Guid.TryParse(location, out locationID);
+
+        tempList = productContainer.AllProducts;
+
+        // Reduce the list to products with a name or description like search
+        if (search != null)
+        {
+            tempList = tempList.Where(x => x.Title.Contains(search, StringComparison.CurrentCultureIgnoreCase) || x.Description.Contains(search)).ToList();
+        }
+
+        // Reduce the list to products with a specific category
+        if (category != null)
+        {
+            List<Guid> productIDs = httpClient.GetFromJsonAsync<List<Guid>>(endpoints.Products + "Products/GetProductIDsForCategory/" + categoryID.ToString()).Result;
+
+            tempList = tempList.Where(x => productIDs.Contains(x.Id) && x.Active).ToList();
+        }
+
+        // Reduce the list to products with a specific location
+        if (location != null)
+        {
+            List<Guid> productIDs = httpClient.GetFromJsonAsync<List<Guid>>(endpoints.Products + "Products/GetProductIDsForLocation/" + locationID.ToString()).Result;
+
+            tempList = tempList.Where(x => productIDs.Contains(x.Id) && x.Active).ToList();
+        }
+
+        // Reduce the list to products within a date range
+        if (date != null)
+        {
+            tempList = tempList.Where(x => DateOnly.FromDateTime(x.ListDate) >= (DateOnly) date).ToList();
+        }
+
+        return tempList;
+    }
+    }
+}

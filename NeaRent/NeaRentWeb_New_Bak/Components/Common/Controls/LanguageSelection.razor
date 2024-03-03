@@ -1,0 +1,88 @@
+﻿@if (FullWidth)
+{
+    <li class="language-area">
+        <i class="bi bi-globe2"></i>
+        <div class="language-dropdown-container">
+            <select class="language-dropdown" @bind=@languageId>
+                <option class="language-text" value="en" selected>EN</option>
+                <option class="language-text" value="fr">FR</option>
+            </select>
+        </div>
+    </li>
+}
+else
+{
+    <li class="language-area-small">
+        <i class="bi bi-globe2"></i>
+        <div class="language-dropdown-container">
+            <select class="language-dropdown-small" @bind=@languageId>
+                <option class="language-text" value="en" selected>EN</option>
+                <option class="language-text" value="fr">FR</option>
+            </select>
+        </div>
+    </li>
+}
+
+@code {
+    [Parameter]
+    public string languageId { get; set; } = "en";
+
+    [Parameter]
+    public bool FullWidth { get; set; } = false;
+}
+
+<style>
+    .language-area {
+        display: grid;
+        grid-template-columns: min-content auto;
+        flex-direction: row;
+        align-content: center;
+        height: fit-content;
+        gap: 10px;
+    }
+
+    .language-area-small {
+        display: grid;
+        grid-template-columns: min-content auto;
+        flex-wrap: wrap;
+        flex-direction: row;
+        align-content: center;
+        height: fit-content;
+        align-self: center;
+    }
+
+    .language-dropdown-container {
+        width: 100%;
+        align-self: center;
+    }
+
+    .language-dropdown {
+        display: flex;
+        flex-direction: row;
+        border-style: none;
+        width: 100%;
+        background: transparent;
+    }
+
+        .language-dropdown:focus-visible {
+            outline: none;
+        }
+
+    .language-dropdown-small {
+        display: flex;
+        flex-direction: row;
+        border-style: none;
+        width: 100%;
+        background: transparent;
+        font-size: var(--header_font_size);
+        font-weight: var(--header_font_weight);
+    }
+
+        .language-dropdown-small:focus-visible {
+            outline: none;
+        }
+
+    .language-text {
+        padding: 0px 10px;
+    }
+</style>

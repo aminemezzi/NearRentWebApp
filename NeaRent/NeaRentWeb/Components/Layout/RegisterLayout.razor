@@ -1,0 +1,281 @@
+﻿@inherits LayoutComponentBase
+
+@implements IDisposable
+
+@inject IHttpClientFactory ClientFactory
+@inject NavigationManager Navigation
+@inject AuthenticationStateProvider AuthenticationStateProvider
+@inject HttpClient httpClient
+
+<div class="pagecontainer">
+    <div class="page">
+        <div class="main">
+            <header class="p-3 border-bottom">
+                <div class="main-header">
+                    <img class="main-header-logo" src="images/nearent_logo.png" />
+                    @* <div class="resume" @onclick="ResumeLater">Resume later</div> *@
+                </div>
+            </header>
+            <article class="content px-4">
+
+                @Body
+
+            </article>
+            <footer>
+                @if (ShowFooter)
+                {
+                    <div class="footer-buttons">
+                        @if (Step > 1)
+                        {
+    
+                                <button class="back-button" @onclick=BackClicked>Back</button>
+
+                        }
+                        @if (Step < 10)
+                        {
+ 
+                                <button class="next-button @buttonwidth" @onclick=NextClicked>Next</button>
+             
+                        }
+                        @if (Step == 10)
+                        {
+
+                            <button class="next-button " @onclick=SaveClicked>Save</button>
+
+                        }
+                    </div>
+                    <div class="signup">
+                        <div class="signin-text">Already a member?</div>
+                        <div class="signin-text signin-text-link" @onclick=SignIn>Sign in</div>
+                    </div>
+
+                }
+            </footer>
+        </div>
+    </div>
+</div>
+
+@code {
+    [Inject]
+    private NotifyResumeService? notifyResumeService
+    {
+        get; set;
+    }
+
+    NotifyResumeService NotifiyResumeService => notifyResumeService!;
+
+    bool ShowFooter { get; set; } = false;
+
+    int Step { get; set; } = 1;
+
+    string buttonwidth { get; set; } = "";
+    string widebutton { get; set; } = "wide-button";
+
+    protected override async Task OnInitializedAsync()
+    {
+        notifyResumeService.EnteredCredentialMode += this.EnteredCredentialMode;
+        notifyResumeService.EnteredRegisterMode += this.EnteredRegisterMode;
+        notifyResumeService.BackMayProgress += this.BackToProgress;
+        notifyResumeService.NextMayProgress += this.NextToProgress;
+        notifyResumeService.ForcedStepChange += new EventHandler<ResumeEventArgs>(ForceStep);
+    }
+
+    public void Dispose()
+    {
+        notifyResumeService.EnteredCredentialMode -= this.EnteredCredentialMode;
+        notifyResumeService.EnteredRegisterMode -= this.EnteredRegisterMode;
+        notifyResumeService.BackMayProgress -= this.BackToProgress;
+        notifyResumeService.NextMayProgress -= this.NextToProgress;
+        notifyResumeService.ForcedStepChange -= new EventHandler<ResumeEventArgs>(ForceStep);
+    }
+
+    private void ResumeLater()
+    {
+        notifyResumeService.ResumeClicked(this, new ResumeEventArgs());
+    }
+
+    private void BackClicked()
+    {
+        notifyResumeService.BackClicked(this, new ResumeEventArgs());
+    }
+
+    private void BackToProgress(object? sender, EventArgs e)
+    {
+        Step--;
+        buttonwidth = "";
+        if (Step <= 1)
+        {
+            buttonwidth = widebutton;
+        }
+        StateHasChanged();
+    }
+
+    private void NextClicked()
+    {
+        notifyResumeService.NextClicked(this, new ResumeEventArgs());
+    }
+
+    private void NextToProgress(object? sender, EventArgs e)
+    {
+        Step++;
+        buttonwidth = "";
+        if (Step <= 1)
+        {
+            buttonwidth = widebutton;
+        }
+        StateHasChanged();
+    }
+
+
+    private void SaveClicked()
+    {
+        notifyResumeService.SaveClicked(this, new ResumeEventArgs());
+    }
+
+    private void EnteredCredentialMode(object? sender, EventArgs e)
+    {
+        ShowFooter = false;
+        Step = 0;
+        StateHasChanged();
+    }
+
+    private void EnteredRegisterMode(object? sender, EventArgs e)
+    {
+        ShowFooter = true;
+        if (Step == 1)
+        {
+            buttonwidth = widebutton;
+        }
+        StateHasChanged();
+    }
+
+    private void SignIn()
+    {
+        NavigationManager.NavigateTo("/signin");
+    }
+
+    private void ForceStep(object sender, ResumeEventArgs e)
+    {
+        this.Step = e.Step;
+        StateHasChanged();
+    }
+}
+
+<style>
+    .resume {
+        align-self: center;
+        justify-self: end;
+    }
+
+    footer {
+        position: fixed;
+        bottom: 0;
+        width: 100%;
+        margin-bottom: 20px;
+        display: grid;
+    }
+
+    .footer-content {
+        display: grid;
+        margin-right: 10px;
+        margin-left: 10px;
+    }
+
+    .footer-buttons {
+        display: grid;
+        justify-self: center;
+        width: 18em;
+        grid-template-columns: auto auto;
+        ;
+    }
+
+    .next-button {
+        background-color: var(--nearent-green);
+        color: var(--header_text);
+        font-style: normal;
+        font-size: var(--header_font_size);
+        border-style: none;
+        font-weight: var(--header_font_weight);
+        justify-self: end;
+        width: 70px;
+        border-radius: 10px;
+        margin-top: 20px;
+        margin-bottom: 20px;
+        padding: 10px;
+    }
+
+        .next-button:focus {
+            background-color: var(--nearent-green);
+            color: var(--header_text);
+            border-style: none;
+        }
+
+        .next-button:hover {
+            background-color: var(--nearent-green);
+            color: var(--header_text);
+            border-style: none;
+        }
+
+        .next-button:active {
+            background-color: var(--nearent-green);
+            color: var(--header_text);
+            border-style: none;
+        }
+
+    .back-button {
+        background-color: var(--nearent-gray);
+        color: var(--header_text);
+        font-style: normal;
+        font-size: var(--header_font_size);
+        border-style: none;
+        font-weight: var(--header_font_weight);
+        justify-self: start;
+        width: 70px;
+        border-radius: 10px;
+        margin-top: 20px;
+        margin-bottom: 20px;
+        padding: 10px;
+    }
+
+        .back-button:focus {
+            background-color: var(--nearent-gray);
+            color: var(--header_text);
+            border-style: none;
+        }
+
+        .back-button:hover {
+            background-color: var(--nearent-gray);
+            color: var(--header_text);
+            border-style: none;
+        }
+
+        .back-button:active {
+            background-color: var(--nearent-gray);
+            color: var(--header_text);
+            border-style: none;
+        }
+
+    .wide-button{
+        width: 200px;
+    }
+
+    .signup {
+        display: flex;
+        flex-direction: row;
+        width: -webkit-fill-available;
+        justify-content: center;
+        margin-top: 5px;
+    }
+
+    .signin-text {
+        font-size: 0.9em;
+        font-weight: 700;
+        text-align: start;
+        padding: 2px 0px;
+    }
+
+    .signin-text-link {
+        color: var(--nearent-green);
+        margin-left: 5px;
+    }
+</style>

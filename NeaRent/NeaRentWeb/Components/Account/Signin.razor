@@ -1,0 +1,352 @@
+﻿@page "/signin"
+@layout SignInLayout
+
+@implements IDisposable
+
+@using NeaRentWeb.Components.Account
+@using System.ComponentModel.DataAnnotations
+@using NeaRentWeb.Components.Common
+
+@inject Endpoints endpoints
+@inject UserTokenProvider userTokenProvider
+@inject AzureSettings azureSettings
+@inject GoogleSettings googleSettings
+@inject IJSRuntime JSRuntime
+@inject AuthenticationStateProvider authStateProvider
+@inject IHttpClientFactory ClientFactory
+@inject UserManager.Models.User user
+
+<div class="login-page">
+    <div class="login-container">
+        <div class="login-title">Sign In</div>
+        <div class="login-providers">
+            <button class="provider-button" @onclick="SignInWithGoogleAsync"><img class="provider-logo" src="images\google_logo.png" />Google</button>
+        </div>
+        <hr class="break" />
+
+        <EditForm Model="@loginForm" OnValidSubmit="@Submit" FormName="LoginForm" class="form">
+            <DataAnnotationsValidator />
+            <div class="login-text">Or continue with email address</div>
+            <div class="login-email-container">
+                <i class="bi bi-envelope"></i>
+                <input class="login-email" type="email" @bind-value=loginForm.Username />
+            </div>
+            <ValidationMessage For=@(() => loginForm.Username) />
+            <div class="login-email-container">
+                <i class="bi bi-lock"></i>
+                <input class="login-password" type="password" @bind-value=loginForm.Password />
+            </div>
+            <ValidationMessage For=@(() => loginForm.Password) />
+            @if (loginMessage != null)
+            {
+                <div class="alert alert-danger" role="alert">
+                    @loginMessage
+                </div>
+            }
+            <div class="login-text login-text-underline" @onclick=ForgotPassword>Forgot password?</div>
+            <button class="signin-button" disabled=@formInvalid>Sign In</button>
+            <div class="remember-me">
+                <input type="checkbox" class="remember-me-checkbox" />
+                <div class="login-text">Remember me</div>
+            </div>
+        </EditForm>
+        <div class="signup"><div class="login-text">Don't have an account?</div><div class="login-text signup-text" @onclick=Register>Sign up</div></div>
+    </div>
+</div>
+
+
+@code {
+    private LoginForm loginForm = new LoginForm();
+    private bool formInvalid { get; set; } = false;
+    private EditContext? editContext;
+    private string? loginMessage { get; set; } = null;
+
+    protected override async Task OnInitializedAsync()
+    {
+        editContext = new(loginForm);
+        editContext.OnFieldChanged += HandleFieldChanged;
+        loginMessage = null;
+    }
+
+    public void Dispose()
+    {
+        if (editContext is not null)
+        {
+            editContext.OnFieldChanged -= HandleFieldChanged;
+        }
+    }
+
+    private void HandleFieldChanged(object? sender, FieldChangedEventArgs e)
+    {
+        if (editContext is not null)
+        {
+            formInvalid = !editContext.Validate();
+            StateHasChanged();
+        }
+    }
+
+    public async Task SignInWithGoogleAsync()
+    {
+        await ((AuthStateProvider) authStateProvider).LoginGoogle(NavigationManager, googleSettings, userTokenProvider);
+
+        //       var stateProvider = DotNetObjectReference.Create<AuthenticationStateProvider>(authStateProvider);
+        //await JSRuntime.InvokeVoidAsync("GoogleInitialize", googleSettings.client_id, authStateProvider);
+        //The following code might not work in some cases
+        //await JSRuntime.InvokeVoidAsync("google.accounts.id.prompt");
+
+        //The following code will execute the prompt function and print the reason of not working to the console if fails.
+        //await JSRuntime.InvokeVoidAsync("GooglePrompt");
+    }
+
+    private async Task Submit()
+    {
+        string? result = await ((AuthStateProvider) authStateProvider).LoginAzure(loginForm.Username, loginForm.Password, endpoints, azureSettings, userTokenProvider);
+
+        if (result == null)
+        {
+            // Check is user is registered on the system
+            // If not, ask user to supply details
+            var request = new HttpRequestMessage(HttpMethod.Get, endpoints.UserManager + $"Users/{((AuthStateProvider) authStateProvider).GetUser().ID}");
+
+            HttpClient client = new HttpClient();
+
+            using (var response = await client.SendAsync(request))
+            {
+                if (response.IsSuccessStatusCode)
+                {
+                    string json = await response.Content.ReadAsStringAsync();
+                    UserManager.Models.User loggedInUser = JsonSerializer.Deserialize<UserManager.Models.User>(json, new JsonSerializerOptions(JsonSerializerDefaults.Web));
+
+                    user = loggedInUser;
+
+                    if (user.CurrentStatus == 0)
+                    {
+                        NavigationManager.NavigateTo($"/register/{user.AzureObjectId}");
+                    }
+                    else
+                    {
+                        NavigationManager.NavigateTo("/");
+                    }
+                }
+                else
+                {
+                    NavigationManager.NavigateTo("/");
+                }
+            }
+        }
+        else
+        {
+            switch (result)
+            {
+                case "noclaims":
+                    loginMessage = "Unable to identify user " + loginForm.Username;
+                    break;
+                case "authentication":
+                    loginMessage = "User cannot log in. Either the supplied credentials are incorrect, or you are not registered. To register, please click on the Sign up link below.";
+                    break;
+                case "cannotconnect":
+                    loginMessage = "Unable to connect at this time. Please try again later.";
+                    break;
+                default:
+                    break;
+            }
+        }
+    }
+
+    private void Register()
+    {
+        NavigationManager.NavigateTo("/register");
+    }
+
+    private void ForgotPassword()
+    {
+        NavigationManager.NavigateTo($"/ForgotPasswordEmail/{loginForm.Username}");
+    }
+
+    public class LoginForm
+    {
+        [Required]
+        [DataType(DataType.EmailAddress)]
+        public string Username
+        {
+            get; set;
+        }
+
+        [Required]
+        [DataType(DataType.Password)]
+        public string Password
+        {
+            get; set;
+        }
+    }
+}
+<style>
+    .login-page {
+        display: grid;
+        width: 100%;
+    }
+
+    .login-container {
+        display: grid;
+        align-items: center;
+        justify-self: center;
+        justify-items: center;
+        margin-top: 30px;
+        width: 16em;
+    }
+
+    .login-title {
+        font-size: 2.5em;
+        font-weight: 700;
+        color: black;
+        background-color: white;
+    }
+
+    .form {
+        display: grid;
+    }
+
+    .login-providers {
+        margin: 30px 0px;
+    }
+
+    .provider-logo {
+        width: 1.5em;
+        height: 1.5em;
+    }
+
+    .provider-button {
+        width: 15em;
+        padding: 5px;
+        background-color: white;
+        border: 1px solid black;
+        border-radius: 10px;
+    }
+
+    .break {
+        height: 1px;
+        color: black;
+        width: 100%;
+    }
+
+    .login-text {
+        font-size: 0.9em;
+        font-weight: 700;
+        text-align: start;
+        padding: 2px 0px;
+    }
+
+    .login-text-underline {
+        text-decoration: underline;
+    }
+
+    .login-email-container {
+        display: flex;
+        flex-direction: row;
+        width: 15em;
+        padding: 5px;
+        background-color: white;
+        border: 1px solid black;
+        border-radius: 10px;
+        margin: 10px 0px;
+    }
+
+    .login-email {
+        background-color: white !important;
+        border: none;
+        width: 100%;
+    }
+
+        .login-email:focus-visible {
+            outline: none;
+        }
+
+    .login-password-container {
+        width: 15em;
+        padding: 5px;
+        background-color: white;
+        border: 1px solid black;
+        border-radius: 10px;
+    }
+
+    .login-password {
+        background-color: white;
+        border: none;
+        width: 100%;
+    }
+
+        .login-password:focus-visible {
+            outline: none;
+        }
+
+    .login-button {
+        background-color: var(--login-button-background);
+        color: var(--login-button-color);
+        width: 100%;
+        border-radius: 10px;
+        height: 2.5em;
+        margin: 20px 0px;
+        border: 0px;
+    }
+
+    .remember-me {
+        display: flex;
+        flex-direction: row;
+        align-items: center;
+    }
+
+    .remember-me-checkbox {
+        margin-right: 5px;
+    }
+
+    .signup {
+        display: flex;
+        flex-direction: row;
+        width: -webkit-fill-available;
+        justify-content: center;
+        margin-top: 5px;
+    }
+
+    .signup-text {
+        color: var(--nearent-green);
+        margin-left: 5px;
+    }
+
+    input[type="email"] {
+        background-color: white;
+    }
+
+    .signin-button {
+        background-color: var(--nearent-green);
+        color: var(--header_text);
+        font-style: normal;
+        font-size: var(--header_font_size);
+        border-style: none;
+        font-weight: var(--header_font_weight);
+        align-self: center;
+        width: fit-content;
+        justify-self: center;
+        padding: 10px 20px;
+        border-radius: 10px;
+        margin-top: 20px;
+        margin-bottom: 20px;
+    }
+
+        .signin-button:focus {
+            background-color: var(--nearent-green);
+            color: var(--header_text);
+            border-style: none;
+        }
+
+        .signin-button:hover {
+            background-color: var(--nearent-green);
+            color: var(--header_text);
+            border-style: none;
+        }
+
+        .signin-button:active {
+            background-color: var(--nearent-green);
+            color: var(--header_text);
+            border-style: none;
+        }
+</style>

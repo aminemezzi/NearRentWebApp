@@ -1,0 +1,1 @@
+﻿Scaffold-DbContext -Connection "Server=MORNE\SQLEXPRESS;Database=Products;User ID=SA;Password=P@ssw0rd;Trust Server Certificate=true" -Provider Microsoft.EntityFrameworkCore.SqlServer -Context NeaRentContext -OutputDir Models -Force

@@ -1,0 +1,42 @@
+﻿@inject NavigationManager Navigation
+@if (ShowBreadcrumbs)
+{
+    <div class="breadcrumb-container">
+        <i class="bi bi-house" @onclick="() => MoveTo(home)" style="align-self: start; margin-right:10px"></i>
+        @foreach (BreadcrumbItem crumb in BreadCrumbList)
+        {
+            <i class="bi bi-chevron-right chevron-spacing"></i>
+            <div @onclick="() => MoveTo(crumb.Navigation)">@crumb.Text</div>
+        }
+    </div>
+}
+
+@code {
+    [Parameter]
+    public List<BreadcrumbItem> BreadCrumbList { get; set; } = new List<BreadcrumbItem>();
+
+    [Parameter]
+    public bool ShowBreadcrumbs { get; set; } = true;
+
+
+    private string home = "/";
+
+    private void MoveTo(string route)
+    {
+        Navigation.NavigateTo(route);
+    }
+}
+
+<style>
+    .breadcrumb-container{
+        display: flex;
+        width: -webkit-fill-available;
+        flex-direction: row;
+        padding-left: 20px;
+    }
+
+    .chevron-spacing
+    {
+        padding-right: 10px;
+    }
+</style>

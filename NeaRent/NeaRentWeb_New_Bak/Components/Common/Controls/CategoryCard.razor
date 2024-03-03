@@ -1,0 +1,80 @@
+﻿@inject VariableStorage variableStorage
+
+<div class="card category-card">
+    <div class="category-card-container">
+        <img class="category-card-image" src="categoryimages/@Category.ImageName" />
+        <div class="category-card-title">@Category.Name</div>
+    </div>
+</div>
+
+@code {
+    [Parameter]
+    public Category Category
+    {
+        get; set;
+    }
+
+    float? rating { get; set; } = null;
+    int? ratingCount { get; set; } = null;
+
+    protected override async Task OnInitializedAsync()
+    {
+    }
+}
+
+<style>
+    .category-card {
+        width: 27em;
+        height: 17em;
+        margin-right: 5px;
+    }
+
+    /* Medium devices (landscape tablets, 992px and up) */
+    @@media (min-width: 992px) {
+        .category-card {
+            width: 18em;
+            height: 18em;
+        }
+    }
+
+    .category-card-container {
+        display: grid;
+        grid-gap: 5px;
+        height: -webkit-fill-available;
+        grid-template-columns: auto;
+        grid-template-rows: 4fr 1fr;
+        grid-template-areas:
+            "image"
+            "title";
+    }
+
+    .category-card-image {
+        grid-area: image;
+        display: flex;
+        /* max-width: 320px; */
+        max-height: 200px;
+        object-fit: contain;
+        justify-self: center;
+        border-radius: 5px;
+    }
+
+    /* Large devices (laptops/desktops, 992px and up) */
+    @@media (min-width: 992px) {
+        .category-card-image {
+            object-fit: contain;
+            width: 100%;
+            /* height: -webkit-fill-available; */
+            max-height: 200px;
+            max-width: 320px;
+            border-top-left-radius: 5px;
+            border-top-right-radius: 5px;
+            border-bottom-left-radius: 0px;
+        }
+    }
+
+    .category-card-title {
+        grid-area: title;
+        display: flex;
+        justify-self: center;
+    }
+</style>

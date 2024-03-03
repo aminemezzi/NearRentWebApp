@@ -1,0 +1,460 @@
+﻿@inherits LayoutComponentBase
+
+@implements IDisposable
+
+@inject IHttpClientFactory ClientFactory
+@inject NavigationManager Navigation
+@inject AuthenticationStateProvider AuthenticationStateProvider
+@inject HttpClient httpClient
+@inject Endpoints endpoints
+@inject VariableStorage variableStorage
+@inject ProductContainer productContainer
+@inject CategoryContainer categoryContainer
+@inject Addresses addresses
+@inject SearchParameters searchParameters
+@using NeaRentWeb.Components.Account
+@using NeaRentWeb.Components.Common.Controls
+
+<div class="page">
+    <div class="main">
+        @if (ShowMainPage)
+        {
+            <header class="main-header-container">
+                <div class="main-header">
+                    <img class="main-header-logo" src="images/nearent_logo.png" />
+                    <div class="main-header-menu">
+ <AuthorizeView>
+                            <Authorized>
+                                <MessageButton />
+                                <NotificationButton />
+                                <ProfileButton />
+                                <ActionBar ShowRent=false ShowRentOut=true />
+                                <MenuButton IsAuthorized=true />
+                            </Authorized>
+                            <NotAuthorized>
+                                <LanguageSelection />
+                                <ActionBar ShowRent=true ShowRentOut=false />
+                                <MenuButton IsAuthorized=false />
+                            </NotAuthorized>
+                        </AuthorizeView>
+                     
+                    </div>
+
+                </div>
+                <div class="common-controls">
+                    <CategoryBar Categories=@categoryContainer.AllCategories />
+                    <SearchBox OnSearch=@Search />
+                    <BreadCrumbs BreadCrumbList=@variableStorage.Breadcrumbs />
+                </div>
+            </header>
+            
+            <article>
+                @Body
+            </article>
+
+            <footer>
+                <div class="foot-title">
+                    <div class="foot-title-title">
+                        Rent on neaRent
+                    </div>
+                    <div class="foot-title-subtitle">
+                        Are you looking for tenting the electronics you dont use much?
+                    </div>
+                    <div class="foot-title-button">
+                        <button class="learn-more-button">Learn More<i class="bi bi-arrow-right"></i></button>
+                    </div>
+                </div>
+            </footer>
+        }
+        else
+        {
+            <header>
+                <div class="alt-header-container">
+                    <img class="alt-header-logo" src="images/nearent_logo.png" />
+                    <div class="alt-header-text">to rent tomorrow's electronics today</div>
+                </div>
+            </header>
+            <article>
+                @Body
+            </article>
+            <footer>
+            </footer>
+        }
+    </div>
+</div>
+
+
+@code {
+    [CascadingParameter]
+    private HttpContext HttpContext { get; set; } = default!;
+
+    string idToken { get; set; } = "";
+    string logoutRedirect { get; set; } = "";
+    string loginRedirect { get; set; } = "";
+    string registerRedirect { get; set; } = "";
+
+    bool ShowMainPage { get; set; } = true;
+
+    
+    protected override async Task OnInitializedAsync()
+    {
+        if (HttpContext != null)
+        {
+            CultureInfo? culture = await Tools.GetCulture(HttpContext);
+            if (culture != null)
+            {
+                variableStorage.Culture = culture;
+            }
+        }
+
+        AuthenticationState authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+        if (authState != null)
+        {
+            var claim = authState.User.Claims.Where(x => x.Type == "jti").FirstOrDefault();
+
+            if (claim != null)
+            {
+                // Check if the user has already been created. If not, ask him for his details
+
+                Guid userID = Guid.Parse(authState.User.Claims.Where(x => x.Type == "http://schemas.xmlsoap.org/ws/2005/05/identity/claims/nameidentifier").First().Value);
+
+                User? user = httpClient.GetFromJsonAsync<User>(endpoints.UserManager + $"Users/{userID.ToString()}").Result;
+
+                if (user == null)
+                {
+                    logoutRedirect = Uri.EscapeDataString(Navigation.BaseUri + "/userregistration");
+                }
+
+                //        idToken = tokens.IdToken;
+                logoutRedirect = Uri.EscapeDataString(Navigation.BaseUri + "/logout");
+            }
+            else
+            {
+                loginRedirect = Uri.EscapeDataString(Navigation.BaseUri);
+                registerRedirect = Uri.EscapeDataString(Navigation.BaseUri);
+            }
+        }
+
+        BreadcrumbItem bcItem = new BreadcrumbItem { Text = "Computers", Navigation = "/" };
+
+        variableStorage.Breadcrumbs.Clear();
+        variableStorage.Breadcrumbs.Add(bcItem);
+
+        searchParameters.SearchParametersChanged += ProductSearchChanged;
+        Navigation.LocationChanged += LocationChanged;
+
+        await Populate();
+    }
+
+    public void Dispose()
+    {
+        searchParameters.SearchParametersChanged -= ProductSearchChanged;
+        Navigation.LocationChanged -= LocationChanged;
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+
+        }
+    }
+
+    private async Task Populate()
+    {
+        await PopulateCatagories();
+        await PopulateProducts();
+        await PopulateCountriesStatesCities();
+        productContainer.SearchedProducts = productContainer.AllProducts;
+    }
+
+    private async Task PopulateCatagories()
+    {
+        var categoryList = httpClient.GetFromJsonAsync<List<Category>>(endpoints.Products + "Categories").Result;
+
+        if (categoryList != null && categoryList.Count > 0)
+        {
+            categoryContainer.AllCategories = categoryList;
+        }
+
+        categoryList = httpClient.GetFromJsonAsync<List<Category>>(endpoints.Products + "Categories/FeaturedCategories").Result;
+
+        if (categoryList != null && categoryList.Count > 0)
+        {
+            categoryContainer.AllFeaturedCategories = categoryList;
+        }
+    }
+
+    private async Task PopulateProducts()
+    {
+        var productList = httpClient.GetFromJsonAsync<List<Product>>(endpoints.Products + "Products").Result;
+
+        if (productList != null && productList.Count > 0)
+        {
+            productContainer.AllProducts = productList;
+        }
+    }
+
+    private async Task PopulateCountriesStatesCities()
+    {
+        var countryList = httpClient.GetFromJsonAsync<List<AddressCountry>>(endpoints.UserManager + "AddressCountries/AddressCountryStateCity").Result;
+
+        if (countryList != null && countryList.Count > 0)
+        {
+            addresses.AllCountriesStatesCities = countryList;
+        }
+    }
+
+    private void LocationChanged(object sender, LocationChangedEventArgs e)
+    {
+        List<string> newLocation = e.Location.Split("/").ToList();
+
+        List<string> altPageList = new List<string>()
+        {
+            "signin",
+            "register",
+            "messageandreturn"
+        };
+
+        ShowMainPage = true;
+
+        if (newLocation != null && newLocation.Count > 0)
+        {
+            string? contained = newLocation.Where(x => altPageList.Contains(x)).FirstOrDefault();
+
+            if (contained != null)
+            {
+                ShowMainPage = false;
+            }
+
+            StateHasChanged();
+        }
+    }
+
+    private void Search(Dictionary<string, string>? parameters)
+    {
+        searchParameters.SearchParameterList = parameters;
+        Navigation.NavigateTo("/searchresult");
+    }
+
+    private void ProductSearchChanged(object sender, EventArgs e)
+    {
+        DoSearch();
+        StateHasChanged();
+    }
+
+    private async Task DoSearch()
+    {
+        // if (SearchParameters.ProductSearch == null || SearchParameters.ProductSearch.Count == 0)
+        // {
+        //     productContainer.SearchedProducts = productContainer.AllProducts;
+        // }
+        // else
+        // {
+        //     List<Product> tempList = new List<Product>();
+
+        //     string? search = null;
+        //     string? category = null;
+        //     string? location = null;
+
+        //     foreach (KeyValuePair<string, string> item in SearchParameters.ProductSearch)
+        //     {
+        //         switch (item.Key)
+        //         {
+        //             case "searchText":
+        //                 search = item.Value;
+        //                 break;
+        //             case "category":
+        //                 category = item.Value;
+        //                 break;
+        //             case "location":
+        //                 location = item.Value;
+        //                 break;
+        //             default:
+        //                 break;
+        //         }
+        //     }
+
+        //     Guid categoryID = Guid.Empty;
+        //     Guid locationID = Guid.Empty;
+
+        //     Guid.TryParse(category, out categoryID);
+        //     Guid.TryParse(location, out locationID);
+
+        //     tempList = productContainer.AllProducts;
+
+        //     // Reduce the list to products with a name or description like search
+        //     if (search != null)
+        //     {
+        //         tempList = tempList.Where(x => x.Title.Contains(search, StringComparison.CurrentCultureIgnoreCase) || x.Description.Contains(search)).ToList();
+        //     }
+
+        //     // Reduce the list to products with a specific category
+        //     if (category != null)
+        //     {
+        //         List<Guid> productIDs = httpClient.GetFromJsonAsync<List<Guid>>(endpoints.Products + "Products/GetProductIDsForCategory/" + categoryID.ToString()).Result;
+
+        //         tempList = tempList.Where(x => productIDs.Contains(x.Id) && x.Active).ToList();
+        //     }
+
+        //     // Reduce the list to products with a specific location
+        //     if (location != null)
+        //     {
+        //         List<Guid> productIDs = httpClient.GetFromJsonAsync<List<Guid>>(endpoints.Products + "Products/GetProductIDsForLocation/" + locationID.ToString()).Result;
+
+        //         tempList = tempList.Where(x => productIDs.Contains(x.Id) && x.Active).ToList();
+        //     }
+
+        //     productContainer.SearchedProducts = tempList;
+        // }
+    }
+}
+
+<style>
+
+    /* Extra small devices (phones, 600px and down) */
+    @@media only screen and (max-width: 600px) {
+    }
+
+    /* Small devices (portrait tablets and large phones, 600px and up) */
+    @@media only screen and (min-width: 600px) {
+    }
+
+    /* Medium devices (landscape tablets, 768px and up) */
+    @@media only screen and (min-width: 768px) {
+    }
+
+    /* Large devices (laptops/desktops, 992px and up) */
+    @@media only screen and (min-width: 992px) {
+    }
+
+    /* Extra large devices (large laptops and desktops, 1200px and up) */
+    @@media only screen and (min-width: 1200px) {
+    }
+
+    /* non-media styling*/
+
+    .main-header-container {
+        padding: 0px !important;
+        height: fit-content;
+    }
+
+    .alt-header-container {
+        padding: 0px !important;
+        height: fit-content;
+    }
+
+    .alt-header-text {
+        display: flex;
+        justify-content: center;
+        background-color: var(--alt-header-background);
+        color: var(--alt-header-text);
+        font-size: var(--alt-header-font-size-smallest);
+        font-weight: var(--alt-header-font-weight);
+    }
+
+    @@media (min-width: 600px) {
+        .alt-header-text {
+            font-size: var(--alt-header-font-size-small);
+        }
+    }
+
+    @@media (min-width: 992px) {
+        .alt-header-text {
+            font-size: var(--alt-header-font-size);
+        }
+    }
+
+    .main-header {
+        display: grid;
+        grid-auto-flow: column;
+        width: 100%;
+        align-items: center;
+    }
+
+    .main-header-logo {
+        display: flex;
+        justify-self: self-start;
+        align-self: center;
+        height: fit-content;
+    }
+
+    .main-header-menu {
+        display: flex;
+        flex-direction: row;
+        flex-wrap: wrap;
+        justify-self: right;
+        width: fit-content;
+        height: fit-content;
+        align-content: center;
+        justify-content: center;
+        gap: 10px;
+    }
+
+    .dropdown-toggle::after {
+        align-self: center;
+    }
+
+    .dropdown-toggle {
+        display: flex;
+        flex-wrap: wrap;
+        align-content: center;
+    }
+
+    .head-title {
+        display: flex;
+        flex-wrap: wrap;
+        align-content: center;
+        justify-content: center;
+        background-color: var(--header-title-background);
+        color: var(--header-title-text);
+        height: 3em;
+        border-bottom-left-radius: 30px;
+        border-bottom-right-radius: 30px;
+        margin: 0px 10px;
+        font-size: var(--header-title-font-size);
+        font-weight: var(--header-title-font-weight);
+    }
+
+
+
+
+    .searchbox-anchor {
+        display: block;
+        position: relative;
+        top: -25px;
+        height: 50px;
+    }
+
+    .searchbox-container {
+        display: flex;
+        flex-wrap: wrap;
+        align-content: center;
+        justify-content: center;
+        width: 100%;
+        height: 100%;
+    }
+
+    .searchbox-placement {
+        display: flex;
+        flex-wrap: wrap;
+        width: 75%;
+        height: 100%;
+        align-content: center;
+        justify-content: center;
+        border-style: solid;
+        border-width: 1px;
+        border-radius: 15px;
+        color: var(--searchbox-text);
+        background-color: var(--searchbox-background);
+    }
+
+    article {
+        display: flex;
+        flex-wrap: wrap;
+        align-content: stretch;
+        height: 100%;
+        padding-right: 0rem !important;
+        padding-left: 0rem !important;
+    }
+</style>

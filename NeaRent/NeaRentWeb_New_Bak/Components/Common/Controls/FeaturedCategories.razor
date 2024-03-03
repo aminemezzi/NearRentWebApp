@@ -1,0 +1,17 @@
+﻿<div class="feature-category">
+    @foreach (Category category in Categories)
+    {
+        <div>
+            <CategoryCard Category=category />
+        </div>
+        @*  *@
+    }
+</div>
+
+@code {
+    [Parameter]
+    public List<Category> Categories
+    {
+        get; set;
+    } = new List<Category>();
+}
